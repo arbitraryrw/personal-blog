@@ -17,7 +17,7 @@ function ArticleMeta({ blogRoot, meta, readingTime }) {
         </span>
       </React.Fragment>
   }
-      
+
   return (
     <small className={styles.ArticleMeta}>
       <time dateTime={meta.date.toUTCString()}>{formatDate(meta.date)}</time>
