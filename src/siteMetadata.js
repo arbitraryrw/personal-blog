@@ -8,5 +8,5 @@ export default {
   description: "Nikola Cucakovic's blog for all things security and or technology related.",
 
   // The number of posts to a page on the site index.
-  indexPageSize: 10,
+  indexPageSize: 5,
 }

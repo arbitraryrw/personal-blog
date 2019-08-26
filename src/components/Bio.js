@@ -11,18 +11,7 @@ function Bio(props) {
     `}>
       <img src={avatar} alt="Me" />
       <p>
-
-        Create a blog with a single command, by{' '}
-        <a href="https://twitter.com/james_k_nelson/">James K Nelson</a>.
-        <br />
-        Themed after Gatsby's blog starter and Dan Abramov's{' '}
-        <a href="https://overreacted.io/">overreacted.io</a>.<br />
-        Based on{' '}
-        <a href="https://facebook.github.io/create-react-app/">
-          create-react-app
-        </a>
-        , <a href="https://mdxjs.com/">MDX</a>, and{' '}
-        <a href="https://frontarm.com/navi/">Navi</a>.
+        Security person currently working at <a href="https://twitter.com/SW_Integrity">@SW_Integrity</a>. I enjoy building, breaking, and fixing things - especially games. I'm particularly interested in mobile security, both Android and iOS.
       </p>
     </div>
   )

@@ -4,7 +4,7 @@
 
 :root {
   --primary-color: #2A363B;
-  --primary-color-light: rgb(255, 167, 196);
+  --primary-color-light: #2A363B;
 }
 
 :global * {
