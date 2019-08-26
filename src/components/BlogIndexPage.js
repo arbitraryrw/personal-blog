@@ -11,9 +11,10 @@ function BlogIndexPage({ blogRoot, pageCount, pageNumber, postRoutes }) {
     <div>
       <header>
         <h1 className={styles.title}>
-          <Link href={blogRoot}>{siteMetadata.title}</Link>
+          <Link href={blogRoot}>{siteMetadata.pageTitle}</Link>
         </h1>
-        <Bio />
+        {/*<Bio />*/}
+        <Bio/>
       </header>
       <ul className={styles.articlesList}>
         {postRoutes.map(route =>
