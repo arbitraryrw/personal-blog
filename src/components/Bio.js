@@ -11,7 +11,7 @@ function Bio(props) {
     `}>
       <img src={avatar} alt="Me" />
       <p>
-        Security person currently working at <a href="https://twitter.com/SW_Integrity">@SW_Integrity</a>. I enjoy building, breaking, and fixing things - especially games. I'm particularly interested in mobile security, both Android and iOS.
+        Security person currently working at Synopsys. I enjoy building, breaking, and fixing things - especially games. I'm particularly interested in mobile security, both Android and iOS.
       </p>
     </div>
   )
