@@ -1,9 +1,5 @@
 import styles from './document.module.css'
 
-import naviLogo from './imgs/navi-logo.svg'
-import reactLogo from './imgs/react-logo.svg'
-
-
 import r2conFlagFormat from './imgs/1_r2conFlagFormat.png'
 import r2conStringXrefs from './imgs/2_r2conStringXrefs.png'
 import crossReferencePdInFunc from './imgs/3_crossReferencePdInFunc.png'
@@ -26,7 +22,7 @@ import scriptedDecodeAnswer from './imgs/19_scriptedDecodeAnswer.png'
 import allAnswers from './imgs/20_allAnswers.png'
 import submitFlagToR2Ctf from './imgs/21_submitFlagToR2Ctf.png'
 
-<div>
+<div className={styles["blogBody"]}>
 
 # Introduction
 [R2con](https://rada.re/con/2019/) is a yearly conference about [radare2](https://rada.re/r/), a multi-platform, open-source, reverse engineering framework. As part of the conference they host a CTF, this year it was held a few days before the event, more details can be found [here](https://ctf.radare.org/challenges). The CTF consists of thirteen challenges across three levels: easy, medium, and hard. This post will walk through an easy level challenge that was particularly interesting, Land of Ecodelia, a text based adventure game.
@@ -117,6 +113,7 @@ The call graph highlights that there are a number of interesting functions as pa
 The first step is to analyse the disassembly of the function, to print the disassembly for the function in R2 use `pdf @sym.go.main.check`. The function appears to be comparing values and dereferencing pointers in a loop, most likely comparing two objects.
 
 <img src={checkFuncPdCode} className={styles["screenshot"]} alt="logo" />
+
 
 This becomes significantly clearer when viewing the function's control flow graph, use the `agf` utility to print the basic block function graph. The instruction at address `0x0048a46a` looks interesting as it is comparing two dereferenced pointer values. Additionally, the instruction at address `0x0048a48d` also appears interesting as it is comparing two dereferenced pointer values at an offset. Take note of the `0x0048a46a` and `0x0048a48d` addresses as it will feed into later analysis.
 
@@ -233,7 +230,6 @@ The final step is to decode each individual byte of the answer with each respect
 0x20 ^ 0x56 = v
 0x63 ^ 0x06 = e
 0x6f ^ 0x1d = r
-
 ```
 
 The answer to the second question is _never_, and this allows the application to progress to the next question.
@@ -277,11 +273,13 @@ print (answer)
 
 <img src={scriptedDecodeAnswer} className={styles["screenshot"]} alt="logo" />
 
-Once this process has been completed against all of the questions to get all of the answers, concatenate all of the answers to construct the flag  `r2con2019{yneverbothuseriouswhatlightthetorchiguessiopenitturntheknobWITHAKEYIUSEAKEY}`.
+Once this process has been completed against all of the questions to get all of the answers, concatenate all of the answers to construct the flag:
+
+```
+r2con2019{yneverbothuseriouswhatlightthetorchiguessiopenitturntheknobWITHAKEYIUSEAKEY}
+```
 
 <img src={allAnswers} className={styles["screenshot"]} alt="logo" />
-
-The server does indeed accept the answer.
 
 <img src={submitFlagToR2Ctf} className={styles["screenshot"]} alt="logo" />
 
