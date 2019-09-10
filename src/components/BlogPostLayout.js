@@ -40,7 +40,7 @@ function BlogPostLayout({ blogRoot }) {
         <footer className={styles.footer}>
           <h3 className={styles.title}>
             <Link href={blogRoot}>
-              {siteMetadata.title}
+              {siteMetadata.footerTitle}
             </Link>
           </h3>
           <Bio className={styles.bio} />

@@ -2,6 +2,7 @@ export default {
   // The blog's title as it appears in the layout header, and in the document
   // <title> tag.
   title: "Nik ~ Security Professional",
+  footerTitle: "Author",
   pageTitle: "Blog",
   postTitle: "🏠 Nik ~ Security Professional",
 
