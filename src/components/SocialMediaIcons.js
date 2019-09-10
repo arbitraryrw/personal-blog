@@ -43,11 +43,11 @@ library.add(
             <FontAwesomeIcon icon={faLinkedin} size="2x" />
             </a>
           </li>
-          <li  style = {listItemStyle}>
+          {/*<li  style = {listItemStyle}>
             <a style = {{color:"grey"}}href="https://www.instagram.com/nikapotomus/" target="_blank" rel="noopener noreferrer">
             <FontAwesomeIcon icon={faInstagram} size="2x" />
             </a>
-          </li>
+          </li>*/}
         </ul>
 
         <p style = {{color:"grey"}} >
