@@ -1,6 +1,30 @@
+import styles from './document.module.css'
+
 import naviLogo from './imgs/navi-logo.svg'
 import reactLogo from './imgs/react-logo.svg'
-import styles from './document.module.css'
+
+
+import r2conFlagFormat from './imgs/1_r2conFlagFormat.png'
+import r2conStringXrefs from './imgs/2_r2conStringXrefs.png'
+import crossReferencePdInFunc from './imgs/3_crossReferencePdInFunc.png'
+import mainFuncCallGraph from './imgs/4_mainFuncCallGraph.png'
+import goMainFuncListAndCount from './imgs/5_goMainFuncListAndCount.png'
+import checkFuncPdCode from './imgs/6_checkFuncPdCode.png'
+import checkFuncBasicBlocksGraph from './imgs/7_checkFuncBasicBlocksGraph.png'
+import encodeFuncBasicBlocksGraph from './imgs/8_encodeFuncBasicBlocksGraph.png'
+import encodeFuncBreakpoint from './imgs/9_encodeFuncBreakpoint.png'
+import encodeFuncRegisterValueConvert from './imgs/10_encodeFuncRegisterValueConvert.png'
+import checkFuncBreakpoint from './imgs/11_checkFuncBreakpoint.png'
+import checkFuncBreakpoint2 from './imgs/12_checkFuncBreakpoint2.png'
+import checkFuncBreakpointFirstLoop from './imgs/13_checkFuncBreakpointFirstLoop.png'
+import checkFuncBreakpointSecondLoop from './imgs/14_checkFuncBreakpointSecondLoop.png'
+import xorKeyAndAnswer from './imgs/15_xorKeyAndAnswer.png'
+import guessingLengthOfKey from './imgs/16_guessingLengthOfKey.png'
+import extractingEncodedAnswer from './imgs/17_extractingEncodedAnswer.png'
+import inputCorrectAnswer from './imgs/18_inputCorrectAnswer.png'
+import scriptedDecodeAnswer from './imgs/19_scriptedDecodeAnswer.png'
+import allAnswers from './imgs/20_allAnswers.png'
+import submitFlagToR2Ctf from './imgs/21_submitFlagToR2Ctf.png'
 
 <div>
 
@@ -66,15 +90,15 @@ Your poor decisions led you to your death. Sorry.
 ### Static Analysis
 This knowledge can now be applied to direct static analysis on the binary itself. Searching for known strings, such as the flag format `r2con{<flag>}`, is a good start. There are a number of hits for `r2con` when searching the whole binary using `izz`.
 
-1_r2conFlagFormat.png
+<img src={r2conFlagFormat} className={styles["screenshot"]} alt="logo" />
 
 Unfortunately, `r2con2019{all_your_answers_in_order_without_spaces}` is not the flag. However, this does indicate that the answers to the questions are the flag. This can be confirmed by `NOP`ing out the logic that verifies the answers provided by the user matches the expected answer, however, this is not covered and does not provide the flag. The next step is to look at where the string hit is used in relation to the rest of the binary. This can be done by using `axt` to search for cross references to the string at `0x000c3185`.
 
-2_r2conStringXrefs.png
+<img src={r2conStringXrefs} className={styles["screenshot"]} alt="logo" />
 
 The string is referenced in the function `sym.go.main.main` at `0x48a7d2`, however, it appears to be surrounded by a lot of logic that doesn't seem relevant.
 
-3_crossReferencePdInFunc.png
+<img src={crossReferencePdInFunc} className={styles["screenshot"]} alt="logo" />
 
 To get a better understanding of what the code does, R2 can generate a function call graph using `agc`. The terminal output of this is not really legible in a blog format, so `agcd` can be used to generate a Graphviz file and output to a png using dot.
 
@@ -83,30 +107,30 @@ To get a better understanding of what the code does, R2 can generate a function 
 [0x0048a460]> !dot -T png your_graph.dot -o your_graph.graph
 ```
 
-4_mainFuncCallGraph.png
+<img src={mainFuncCallGraph} className={styles["screenshot"]} alt="logo" />
 
 The call graph highlights that there are a number of interesting functions as part of `sym.go`, the `afl` utility can be used to list all the functions in the binary to see if there are any more. There are over 1500 hits to what is probably boiler plate go code, the search is further refined to `sym.go.main` to combat this. The output of the search did not reveal anything else particularly interesting so analysis is focused onto `sym.go.main.check` and `sym.go.main.encode`.
 
-5_goMainFuncListAndCount.png
+<img src={goMainFuncListAndCount} className={styles["screenshot"]} alt="logo" />
 
 #### Check Function
 The first step is to analyse the disassembly of the function, to print the disassembly for the function in R2 use `pdf @sym.go.main.check`. The function appears to be comparing values and dereferencing pointers in a loop, most likely comparing two objects.
 
-6_checkFuncPdCode.png
+<img src={checkFuncPdCode} className={styles["screenshot"]} alt="logo" />
 
 This becomes significantly clearer when viewing the function's control flow graph, use the `agf` utility to print the basic block function graph. The instruction at address `0x0048a46a` looks interesting as it is comparing two dereferenced pointer values. Additionally, the instruction at address `0x0048a48d` also appears interesting as it is comparing two dereferenced pointer values at an offset. Take note of the `0x0048a46a` and `0x0048a48d` addresses as it will feed into later analysis.
 
-7_checkFuncBasicBlocksGraph.png
+<img src={checkFuncBasicBlocksGraph} className={styles["screenshot"]} alt="logo" />
 
 #### Encode Function
 The next step is to look at the `sym.go.main.encode` function. Print the disassembly of the function using `pdf @sym.go.encode` and generated a control flow graph just like before. The function looks like it is doing some form of encoding as can be seen by the loops and `XOR` instructions. Generally speaking, `XOR` instructions are usually interesting in CTFs and the one at `0x0048a32f` is no exception. Furthermore, this specific `XOR` is positioned quite late in the function which suggests it might be where the magic happens in an encoding function.
 
-8_encodeFuncBasicBlocksGraph.png
+<img src={encodeFuncBasicBlocksGraph} className={styles["screenshot"]} alt="logo" />
 
 ### Dynamic Analysis
 The next step is to take the information gathered from static analysis and use it to drive dynamic analysis to get a better understand of what is going on. The R2 inbuilt debugger can be used to facilitate this, attach a debugger to the process by running `r2 -d ctf.file`. Then set breakpoints at the points of interest `0x0048a46a`, `0x0048a48d` and `0x0048a32f` by using the `db <addr>` command. Then continue execution in the debugger session by running the `dc` command. The breakpoint at `0x0048a32f` hit first, dump the values of the registers by executing the `dr` command.
 
-9_encodeFuncBreakpoint.png
+<img src={encodeFuncBreakpoint} className={styles["screenshot"]} alt="logo" />
 
 The encode function breakpoint at `0x0048a32f` targets the instruction `xor r10d, edx`. Notably, the instruction above `0x0048a32f` at `0x0048a32b` appears to be referencing `RSI` at an offset. This means that the value stored in `RDX` is not static and is an offset to `RSI`, meaning it will change with each loop (unless the next offset contains the same value).
 
@@ -119,7 +143,7 @@ The encode function breakpoint at `0x0048a32f` targets the instruction `xor r10d
 
 The `r10` register contains the value entered by the user, in this case `y`. The `RDX` register contains the key, in this case `n`. Notably, the full key can be seen in `RSI` from the stack, this is because `RDX` contains an offset value of `RSI`. R2 allows you to easily query data in different formats by using the `? <value>` command.
 
-10_encodeFuncRegisterValueConvert.png
+<img src={encodeFuncRegisterValueConvert} className={styles["screenshot"]} alt="logo" />
 
 Now that the key and logic for the encode function is clear, the execution of the binary can again continue by running `dc`. The next hit is the breakpoint at `0x0048a46a`.
 
@@ -133,11 +157,11 @@ Now that the key and logic for the encode function is clear, the execution of th
 
 The instruction `cmp rax, rcx` at this address compares two dereferenced pointer values stored in `RAX` and `RCX`. The value of these registers are both `0x02`.
 
-11_checkFuncBreakpoint.png
+<img src={checkFuncBreakpoint} className={styles["screenshot"]} alt="logo" />
 
 This looks like it may be comparing the length of the user's answer against the expected length, performing a length check. This can be confirmed by re-running the binary and entering `yy` instead of `y`. Observe that the value of `RDX` is still `0x02`, however, `RAX` is now `0x04` - 4 bytes instead of 2.
 
-12_checkFuncBreakpoint2.png
+<img src={checkFuncBreakpoint2} className={styles["screenshot"]} alt="logo" />
 
 Now that the expected length of the answer can be extracted, the execution of the binary can continue by running `dc` again. The next hit is the breakpoint at `0x0048a48d`.
 
@@ -151,15 +175,15 @@ Now that the expected length of the answer can be extracted, the execution of th
 
 The instruction at this address compares `RSI` and `RDI`, these registers are dereferencing pointer values at an offset from `RDX` and `RCX`. This means that  `RDX`/`RCX` contain the full objects, and `RSI`/`RDI` contain the current index of the object being compared. The register values confirm that `RCX` and `RDX` contain addresses to pointers, this is verified by using `px` to print the hexdump of the addresses stored in each register.
 
-13_checkFuncBreakpointFirstLoop.png
+<img src={checkFuncBreakpointFirstLoop} className={styles["screenshot"]} alt="logo" />
 
 Continue the execution of the binary again by running `dc` to see if the instruction is iterating through an object. The same breakpoint hits again and the `RSI`/ `RDI` registers contain the subsequent pointer value `0x17`, in addition the `RBX` register is updated to indicate the base index of the loop.
 
-14_checkFuncBreakpointSecondLoop.png
+<img src={checkFuncBreakpointSecondLoop} className={styles["screenshot"]} alt="logo" />
 
 Taking the key from the encode function for the first question `0x6e` and `XOR`ing it with the value `0x17` reveals the the answer ``"y"``. R2 again offers a useful feature to perform this calculation by running `? <val1> ^ <val2>`.
 
-15_xorKeyAndAnswer.png
+<img src={xorKeyAndAnswer} className={styles["screenshot"]} alt="logo" />
 
 ### Executing Attack
 Now that each of the pieces of the puzzle have been reversed, it's time to put everything together. The snippet below simply sets up the breakpoints and uses the `dbc` utility to automatically run a command when a breakpoint is hit, this is used to extract the values of interest identified during dynamic testing at each breakpoint.
@@ -195,11 +219,11 @@ r2 -d ctf.file -i setup.txt
 
 To demonstrate how this attack would work in practice, the process developed is applied against the second question. As the length of the answer is unknown, the first step is to figure out the expected answer length. Step through the question until `0x48a46a` and print the result of the `RDX` register, this contains the value `0x0a`. `0x0a` is `10` in decimal, a single char is two bytes so `10/2=5`, meaning the answer to the next question is five characters long.
 
-16_guessingLengthOfKey.png
+<img src={guessingLengthOfKey} className={styles["screenshot"]} alt="logo" />
 
 The next step is to get the encoding keys and the encoded answer. The keys are different for each byte of the encoded answer, as can be seen by the value of the `RDX` register at the `0x0048a32f` breakpoint changing after each hit. Additionally, the full encoded answer `01 0356 061d` can be found by printing the pointer address stored in `RCX` when `0x0048a48d` is hit.
 
-17_extractingEncodedAnswer.png
+<img src={extractingEncodedAnswer} className={styles["screenshot"]} alt="logo" />
 
 The final step is to decode each individual byte of the answer with each respective key.
 
@@ -214,7 +238,7 @@ The final step is to decode each individual byte of the answer with each respect
 
 The answer to the second question is _never_, and this allows the application to progress to the next question.
 
-18_inputCorrectAnswer.png
+<img src={inputCorrectAnswer} className={styles["screenshot"]} alt="logo" />
 
 These exact same steps are repeated for every question. A Python script can be used to speed up the `XOR`ing as seen below. The snippet simply `XOR`s an array of keys against an array of encoded answers.
 
@@ -251,15 +275,15 @@ print("-"*20, "Answer", "-"*20)
 print (answer)
 ```
 
-19_scriptedDecodeAnswer.png
+<img src={scriptedDecodeAnswer} className={styles["screenshot"]} alt="logo" />
 
 Once this process has been completed against all of the questions to get all of the answers, concatenate all of the answers to construct the flag  `r2con2019{yneverbothuseriouswhatlightthetorchiguessiopenitturntheknobWITHAKEYIUSEAKEY}`.
 
-20_allAnswers.png
+<img src={allAnswers} className={styles["screenshot"]} alt="logo" />
 
 The server does indeed accept the answer.
 
-21_submitFlagToR2Ctf.png
+<img src={submitFlagToR2Ctf} className={styles["screenshot"]} alt="logo" />
 
 ## Conclusion
 Land of Ecodelia is a really interesting and creative CTF challenge. The mechanic of making the flag a concatenation of each answer is really smart, it forces the attacker to play the game and think - I really enjoyed that. In addition, this challenge forced me to learn more about Go which was annoying but also rewarding, so all in all I really enjoyed it.
