@@ -7,7 +7,8 @@
 }
 
 .title {
-  font-family: Montserrat, sans-serif;
+/*  font-family: Montserrat, sans-serif;*/
+  font-family: 'Roboto', sans-serif;
   font-size: 1.44rem;
   font-weight: 900;
   line-height: 1.1;
@@ -18,6 +19,8 @@
 .title > a {
   color: var(--primary-color-light);
   text-decoration: none;
+  /* font-family: 'Roboto', sans-serif; */
+  /* font-family: 'Menlo-Regular', monospace; */
 }
 
 .bannerContainer{

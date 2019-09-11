@@ -1,11 +1,16 @@
+@import url('https://fonts.googleapis.com/css?family=Roboto&display=swap');
+@import url('https://fonts.googleapis.com/css?family=VT323');
+
 .title {
-  font-family: Montserrat, sans-serif;
+  font-family: 'Roboto', sans-serif;
   font-weight: 900;
   line-height: 1.1;
   text-rendering: optimizeLegibility;
 }
 .title > a {
   text-decoration: none;
+  font-family: 'Roboto', sans-serif;
+  /* font-family: 'Menlo-Regular', monospace; */
 }
 
 .header {
@@ -69,7 +74,8 @@
 .content code,
 .content pre {
   color: white;
-  font-family: Consolas,Menlo,Monaco,source-code-pro,Courier New,monospace;
+  /* font-family: Consolas,Menlo,Monaco,source-code-pro,Courier New,monospace; */
+  font-family: 'Menlo-Regular', monospace;
   font-feature-settings: normal;
   text-align: left;
   white-space: pre;
