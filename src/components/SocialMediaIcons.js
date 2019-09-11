@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { library } from '@fortawesome/fontawesome-svg-core'
+import { library, config } from '@fortawesome/fontawesome-svg-core'
 
 import {
  faLinkedin,
@@ -21,6 +21,8 @@ library.add(
  faMapMarkerAlt
 );
 
+config.autoAddCss = false
+
  class SocialMediaIcons extends Component {
    render() {
     return (
@@ -30,17 +32,17 @@ library.add(
         <ul style = {socialMediaStyle} >
           <li style = {listItemStyle}>
             <a style = {{color:"grey"}} href="https://twitter.com/arbitraryrw" target="_blank" rel="noopener noreferrer">
-            <FontAwesomeIcon icon={faTwitterSquare} size="2x" />
+            <FontAwesomeIcon icon={faTwitterSquare} size="2x" width="1.8rem" />
             </a>
           </li>
           <li  style = {listItemStyle}>
             <a style = {{color:"grey"}} href="https://github.com/arbitraryrw" target="_blank" rel="noopener noreferrer">
-            <FontAwesomeIcon icon={faGithubSquare} size="2x" />
+            <FontAwesomeIcon icon={faGithubSquare} size="2x" width="1.8rem" />
             </a>
           </li>
           <li  style = {listItemStyle}>
             <a style = {{color:"grey"}} href="https://www.linkedin.com/in/nikola-cucakovic-623aa677/" target="_blank" rel="noopener noreferrer">
-            <FontAwesomeIcon icon={faLinkedin} size="2x" />
+            <FontAwesomeIcon icon={faLinkedin} size="2x" width="1.8rem"  />
             </a>
           </li>
           {/*<li  style = {listItemStyle}>
@@ -51,7 +53,7 @@ library.add(
         </ul>
 
         <p style = {{color:"grey"}} >
-          <FontAwesomeIcon icon={faMapMarkerAlt} size="1x" />
+          <FontAwesomeIcon icon={faMapMarkerAlt} size="1x" width="0.7rem" />
           &nbsp;London, UK
         </p>
 
@@ -68,6 +70,7 @@ library.add(
 
  const socialMediaStyle = {
    marginTop: "10px",
+   marginBottom: "0",
    padding:"0px",
    listStyle:"none",
    // background: '#333',

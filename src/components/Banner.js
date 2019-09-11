@@ -83,13 +83,13 @@ class Banner extends React.Component {
     //   <p key={index} > { this.printLetterByLetter(banner) } </p>
     //
     // ))
-    <div>
-    <p style= {{minWidth: '500px', minHeight:'9vmin', padding:"0", marginBottom:"5px", fontSize: "5vmin" }} >
+    <div className={styles.bannerContent}>
+    <p style= {{minHeight:'9vmin', padding:"0", marginBottom:"5px", fontSize: "5vmin" }} >
       <span>{ this.state.text }</span>
       <span className={styles.cursor}></span>
     </p>
 
-    <p style= {{minWidth: '100px', marginTop:"0"}}>
+    <p style= {{ marginTop:"0", fontSize: "2vmin"}}>
     Security Specialist / Developer / Reverse Engineer
     </p>
 
@@ -99,5 +99,6 @@ class Banner extends React.Component {
     )
   }
 }
+
 
 export default Banner;

@@ -138,7 +138,7 @@ The breakpoint at `0x0048a32f` inside of the encode function targets the instruc
 ...
 ```
 
-The `R10` register contains the value entered by the user, in this case `y`. The `RDX` register contains what looks like an index of a key, in this case `n`. Notably, the full key can be seen in `RSI` from the stack, this is because `RDX` contains an index value of `RSI`. R2 allows you to easily query data in different formats by using the `? <value>` command.
+The `R10` register contains the value entered by the user, in this case `y`. The `RDX` register contains what looks like the key, in this case `n`. Notably, the full key can be seen in `RSI` from the stack, this is because `RDX` contains an index value of `RSI`. R2 allows you to easily query data in different formats by using the `? <value>` command.
 
 <img src={encodeFuncRegisterValueConvert} className={styles["screenshot"]} alt="logo" />
 
