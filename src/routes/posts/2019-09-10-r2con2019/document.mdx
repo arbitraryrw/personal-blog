@@ -129,7 +129,7 @@ The next step is to take the information gathered from static analysis and use i
 
 <img src={encodeFuncBreakpoint} className={styles["screenshot"]} alt="logo" />
 
-The encode function breakpoint at `0x0048a32f` targets the instruction `xor r10d, edx`. Notably, the instruction above `0x0048a32f` at `0x0048a32b` appears to be referencing an index of `RSI`. This means that the value stored in `RDX` is not static and is an offset to `RSI`, meaning it will change with each loop (unless the next offset contains the same value).
+The breakpoint at `0x0048a32f` inside of the encode function targets the instruction `xor r10d, edx`. `RDX` references an index value of `RSI`, as can be seen in the previous instruction at `0x0048a32b`. This incidactes that the value changes with each loop and is therefore not static.
 
 ```c
 ...
@@ -138,7 +138,7 @@ The encode function breakpoint at `0x0048a32f` targets the instruction `xor r10d
 ...
 ```
 
-The `r10` register contains the value entered by the user, in this case `y`. The `RDX` register contains the key, in this case `n`. Notably, the full key can be seen in `RSI` from the stack, this is because `RDX` contains an index value of `RSI`. R2 allows you to easily query data in different formats by using the `? <value>` command.
+The `R10` register contains the value entered by the user, in this case `y`. The `RDX` register contains what looks like an index of a key, in this case `n`. Notably, the full key can be seen in `RSI` from the stack, this is because `RDX` contains an index value of `RSI`. R2 allows you to easily query data in different formats by using the `? <value>` command.
 
 <img src={encodeFuncRegisterValueConvert} className={styles["screenshot"]} alt="logo" />
 
