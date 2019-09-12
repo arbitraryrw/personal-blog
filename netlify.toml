@@ -6,4 +6,4 @@
 [build]
 base = ""
 publish = "build/"
-command = "npm run deploy:prod"
+command = "npm run build"
