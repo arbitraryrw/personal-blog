@@ -75,12 +75,11 @@ class Banner extends React.Component {
   }
 
   render(){
-    {/* console.log("content: " + this.props.banner[0]);*/}
+    // console.log("content: " + this.props.banner[0]);
     return(
 
     <div className={styles.bannerContent}>
-    {/*<p style= {{minHeight:'9vmin',minWidth: '500px', padding:"0", marginBottom:"5px", fontSize: "5vmin" }} >
-    </p>*/}
+    {/*<p style= {{minHeight:'9vmin',minWidth: '500px', padding:"0", marginBottom:"5px", fontSize: "5vmin" }} >*/}
     <p style= {{minHeight:'9vmin', padding:"0", marginBottom:"5px", fontSize: "5vmin" }} >
       <span>{ this.state.text }</span>
       <span className={styles.cursor}></span>
