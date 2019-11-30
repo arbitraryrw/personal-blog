@@ -23,7 +23,7 @@ npm audit fix
 
 To build locally / deploy to prod run:
 ```
-npm run build
+npm run-script build
 npm run deploy:prod
 ```
 
