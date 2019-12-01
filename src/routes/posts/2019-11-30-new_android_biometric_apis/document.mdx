@@ -1,11 +1,20 @@
 import styles from './document.module.css'
 
-import r2conFlagFormat from './imgs/1_r2conFlagFormat.png'
+import face_prompt_1 from './imgs/face_prompt_1.png'
+import face_prompt_2 from './imgs/face_prompt_2.png'
+import face_prompt_3 from './imgs/face_prompt_3.png'
+import face_prompt_error from './imgs/face_prompt_error.png'
+import face_prompt_confirmation_not_required_1 from './imgs/face_prompt_confirmation_not_required_1.png'
+import face_prompt_confirmation_not_required_2 from './imgs/face_prompt_confirmation_not_required_2.png'
+import finger_prompt_1 from './imgs/finger_prompt_1.png'
+
 
 <div className={styles["blogBody"]}>
 
 # Introduction
 android
+
+<img src={face_prompt_1} className={styles["screenshot"]} alt="Facial recognition prompt" />
 
 ## Background
 
@@ -36,52 +45,57 @@ fun showBiometricPrompt() {
         .setConfirmationRequired(false)
         .setDeviceCredentialAllowed(false)
         .build()
-
-    val biometricPrompt = BiometricPrompt(this, executor,
-        object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationError(errorCode: Int,
-                                               errString: CharSequence) {
-                super.onAuthenticationError(errorCode, errString)
-                Toast.makeText(applicationContext,
-                    "Authentication error: $errString", Toast.LENGTH_SHORT)
-                    .show()
-
-                if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON){
-                    println("Error: negative button pressed.")
-                }
-
-                println("AUTH ERROR")
-            }
-
-            override fun onAuthenticationSucceeded(
-                result: BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
-                val authenticatedCryptoObject: BiometricPrompt.CryptoObject? =
-                    result.getCryptoObject()
-                // User has verified the signature, cipher, or message
-                // authentication code (MAC) associated with the crypto object,
-                // so you can use it in your app's crypto-driven workflows.
-
-                val authResultTextView = findViewById<TextView>(R.id.authResultTextView)
-
-                println("[+] Successful authentication, yahoo!")
-
-                authResultTextView.setText(Successfully Authenticated")
-            }
-
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
-                Toast.makeText(applicationContext, "Authentication failed",
-                    Toast.LENGTH_SHORT)
-                    .show()
-
-                println("Biometric auth failed")
-            }
-        })
-
-    // Displays the "log in" prompt.
-    biometricPrompt.authenticate(promptInfo)
+...
 }
+```
+
+
+```kotlin
+val biometricPrompt = BiometricPrompt(this, executor,
+    object : BiometricPrompt.AuthenticationCallback() {
+        override fun onAuthenticationError(errorCode: Int,
+                                           errString: CharSequence) {
+            super.onAuthenticationError(errorCode, errString)
+            Toast.makeText(applicationContext,
+                "Authentication error: $errString", Toast.LENGTH_SHORT)
+                .show()
+
+            if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON){
+                println("Error: negative button pressed.")
+            }
+
+            println("AUTH ERROR")
+        }
+
+        override fun onAuthenticationSucceeded(
+            result: BiometricPrompt.AuthenticationResult) {
+            super.onAuthenticationSucceeded(result)
+            val authenticatedCryptoObject: BiometricPrompt.CryptoObject? =
+                result.getCryptoObject()
+            // User has verified the signature, cipher, or message
+            // authentication code (MAC) associated with the crypto object,
+            // so you can use it in your app's crypto-driven workflows.
+
+            val authResultTextView = findViewById<TextView>(R.id.authResultTextView)
+
+            println("[+] Successful authentication, yahoo!")
+
+            authResultTextView.setText(Successfully Authenticated")
+        }
+
+        override fun onAuthenticationFailed() {
+            super.onAuthenticationFailed()
+            Toast.makeText(applicationContext, "Authentication failed",
+                Toast.LENGTH_SHORT)
+                .show()
+
+            println("Biometric auth failed")
+        }
+    })
+
+// Displays the "log in" prompt.
+biometricPrompt.authenticate(promptInfo)
+
 ```
 
 
