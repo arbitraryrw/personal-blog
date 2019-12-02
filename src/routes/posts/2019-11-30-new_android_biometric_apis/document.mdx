@@ -245,7 +245,8 @@ fun performBiometricAuthenticationDecrypt(){
     val decryptionSecretKey = getSecretKey()
 
     if (::iv.isInitialized) {
-        decryptionCipher.init(Cipher.DECRYPT_MODE, decryptionSecretKey, IvParameterSpec(iv))
+        decryptionCipher.init(Cipher.DECRYPT_MODE, decryptionSecretKey,
+            IvParameterSpec(iv))
 
         decryptBiometricPrompt.authenticate(
             decryptBiometricPromptInfo,
