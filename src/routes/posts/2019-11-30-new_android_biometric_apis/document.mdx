@@ -82,7 +82,7 @@ The `setConfirmationRequired` method is used to define whether or not the dialog
 
 The `setDeviceCredentialAllowed` method is used to define whether or not the dialogue should give the user the option to authenticate with their device PIN, pattern, or password. This allows the user to choose between authenticating using their biometric or their device authentication method. There are a number of additional considerations when enabling this API, such as checking if the device is secured with a PIN, pattern or password. This can be done by using the [KeyguardManager.isDeviceSecure](https://developer.android.com/reference/android/app/KeyguardManager.html#isDeviceSecure()) and [KeyguardManager.isKeyguardSecure](https://developer.android.com/reference/android/app/KeyguardManager.html#isKeyguardSecure()) APIs. More information on this API can be found [here](https://developer.android.com/reference/androidx/biometric/BiometricPrompt.PromptInfo.Builder#setDeviceCredentialAllowed(boolean)). For the purposes of this example this flag is disabled.
 
-The next step is to initialise the BiometricPrompt itself and create handlers for the many authentication callbacks BiometricPrompt can return, a full list of these callbacks can be found [here](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.AuthenticationCallback). See below a basic example of this to configure this.
+The next step is to initialise the BiometricPrompt itself and create handlers for the many authentication callbacks BiometricPrompt can return, a full list of these callbacks can be found [here](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.AuthenticationCallback). See below a basic example of how to configure this.
 
 ```kotlin
 val executor = ContextCompat.getMainExecutor(this)
@@ -121,18 +121,18 @@ val biometricPrompt = BiometricPrompt(this, executor,
   })
 ```
 
-The authentication process can then begin by invoking the [authenticate](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.html#authenticate(android.os.CancellationSignal,%20java.util.concurrent.Executor,%20android.hardware.biometrics.BiometricPrompt.AuthenticationCallback)) method on the `BiomtricPromt` object and passing in the `BiometricPrompt.PromptInfo` object we created earlier as a paramter. An example of this can be seen below:
+The authentication process can then begin by invoking the [authenticate](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.html#authenticate(android.os.CancellationSignal,%20java.util.concurrent.Executor,%20android.hardware.biometrics.BiometricPrompt.AuthenticationCallback)) method on the `BiomtricPromt` object and passing in the `BiometricPrompt.PromptInfo` object we created earlier as a parameter. An example of this can be seen below:
 
 ```kotlin
 biometricPrompt.authenticate(promptInfo)
 ```
 
-This will then present the biometric dialogue seen earlier. Depending on the result of the biometric authentication process this will then invoke the callback logic we registered earlier. In this example it will simply display a toast message.
+This will then present the biometric dialogue seen earlier. Depending on the result of the biometric authentication process, this will then invoke the callback logic we registered earlier. In this example it will simply display a toast message.
 
 ## BiometricPrompt Usage - Crypto Objects
 In the developer documentation there are two available versions of the `BiometricPrompt.authenticate` API as can be seen [here](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.html#public-methods_1). In the previous example we used the straightforward version where you just pass in a `BiometriPrompt.PromptInfo` object and that’s it. Now let’s look at the version that allows you to handle [BiometricPrompt.CryptoObject](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject.html)s.
 
-This API provides a mechanism for incorporating cryptographic operations into biometric authentication workflows. From a security perspective this is interesting as it presents an opportunity to protect sensitive information within an application without horribly impacting the user experience. Currently, the framework supports the following cryptographic objects: Signature, Cipher, and Mac. For the purposes of this example, the [cipher](https://developer.android.com/reference/javax/crypto/Cipher.html) object is used. First lets start by generating an AES key and storing it in the keystore. The example leverages the following useful wrapper functions taken from [here](https://developer.android.com/training/sign-in/biometric-auth#crypto).
+This API provides a mechanism for incorporating cryptographic operations into biometric authentication workflows. This presents an opportunity to further protect sensitive information within an application without horribly impacting the user experience. Currently, the framework supports the following cryptographic objects: Signature, Cipher, and Mac. For the purposes of this example, the [cipher](https://developer.android.com/reference/javax/crypto/Cipher.html) object is used. First lets start by generating an AES key and storing it in the keystore. The example leverages the following useful wrapper functions taken from [here](https://developer.android.com/training/sign-in/biometric-auth#crypto).
 
 ```kotlin
 
@@ -142,23 +142,9 @@ private fun generateSecretKey(keyGenParameterSpec: KeyGenParameterSpec) {
     keyGenerator.init(keyGenParameterSpec)
     keyGenerator.generateKey()
 }
-
-private fun getSecretKey(): SecretKey {
-    val keyStore = KeyStore.getInstance("AndroidKeyStore")
-
-    // Before the keystore can be accessed, it must be loaded.
-    keyStore.load(null)
-    return keyStore.getKey(KEY_NAME, null) as SecretKey
-}
-
-private fun getCipher(): Cipher {
-    return Cipher.getInstance(KeyProperties.KEY_ALGORITHM_AES + "/"
-            + KeyProperties.BLOCK_MODE_CBC + "/"
-            + KeyProperties.ENCRYPTION_PADDING_PKCS7)
-}
 ```
 
-This can then be used with the `KeyGenParameterSpec.Builder` class to store the newly generated key in the keystore as can be seen below. Detailed documentation on this API can be found [here](https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder). In this example the key is restricted to require user authentication before it can be used, as identified by the `setUserAuthenticationRequired` flag. In addition, the `setInvalidatedByBiometricEnrollment` flag is enabled, meaning the key will be invalidated if the user registers a new biometric credential, such as a new fingerprint. Both of these settings are recommended, however, the latter is only usable on Android 7.0 (API level 24) devices or higher.
+This can then be used with the `KeyGenParameterSpec.Builder` class to store the newly generated key in the keystore as can be seen below. Detailed documentation on this API can be found [here](https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder).
 
 ```kotlin
 val KEY_NAME = "insert_obfuscated_keyname"
@@ -188,7 +174,7 @@ else{
 }
 ```
 
-If the application attempts to access this key without the user performing authentication then the action will fail and an exception will be raised, as can be seen below.
+In this example the key is restricted to require user authentication before it can be used, as identified by the `setUserAuthenticationRequired` flag. In addition, the `setInvalidatedByBiometricEnrollment` flag is enabled, meaning the key will be invalidated if the user registers a new biometric credential, such as a new fingerprint. Both of these settings are recommended, however, the latter is only usable on Android 7.0 (API level 24) devices or higher. If the application attempts to access this key without the user performing authentication then the action will fail and an exception will be raised, as can be seen below.
 
 ```
 at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:930) 
@@ -196,7 +182,7 @@ Caused by: android.security.KeyStoreException: Key user not authenticated
 at android.security.KeyStore.getKeyStoreException(KeyStore.java:1292)
 ```
 
-Access to the key can be granted by the BiometricPrompt API on successful authentication. This is done by passing in the `Cipher` object as a parameter to the `biometricPrompt.authenticate` function along with the `biometricPromptInfo` as was done in the previous example. An example of this can be seen in the code snippet below with a `Cipher.ENCRYPT_MODE` key. Notably, the `getSecretKey` and `getCipher` wrapper functions are taken from [here](https://developer.android.com/training/sign-in/biometric-auth#crypto).
+Access to the key can be granted by the BiometricPrompt API on successful authentication. This is done by passing in the `Cipher` object as a parameter to the `biometricPrompt.authenticate` function along with the `biometricPromptInfo` as was done in the previous example. An example of this can be seen in the code snippet below with a cipher of mode `Cipher.ENCRYPT_MODE`. Notably, the `getSecretKey` and `getCipher` wrapper functions are taken from [here](https://developer.android.com/training/sign-in/biometric-auth#crypto).
 
 ```kotlin
 lateinit var iv: ByteArray
@@ -228,7 +214,7 @@ private fun getCipher(): Cipher {
 }
 ```
 
-Upon successful authentication the corresponding `CryptoObject` will be available in the `onAuthenticationSucceeded` callback from `BiometricPrompt`.
+Upon successful authentication the corresponding `CryptoObject` will be available in the `onAuthenticationSucceeded` callback from `BiometricPrompt`. This `Cipher` object can then be freely used to perform cryptographic operations. Notably, in this example the `Cipher` object is restricted to only performing encryption operations, as defined by the `Cipher.ENCRYPT_MODE` initialisation vector set in the previous example. To encrypt a piece of data use the [cipher.doFinal](https://developer.android.com/reference/javax/crypto/Cipher.html#doFinal(byte%5B%5D)) method on the `Cipher object` with the value to encrypt as a parameter. An example of this can be seen in the snippet of code below.
 
 ```kotlin
 override fun onAuthenticationSucceeded(
@@ -239,18 +225,19 @@ override fun onAuthenticationSucceeded(
     encryptedSuperSecretValue = result.cryptoObject?.cipher?.doFinal(
         superSecretValue.toByteArray(Charset.defaultCharset()))!!
 
-    var uiResultData = "Encrypt: " + encryptedSuperSecretValue.toString(Charset.defaultCharset())
+    var uiResultData = "Encrypt: " +
+    encryptedSuperSecretValue.toString(Charset.defaultCharset())
 
     authResultTextView.setText(uiResultData)
 
-    Toast.makeText(applicationContext, "Authentication Success - Encrypting!",
+    Toast.makeText(applicationContext,
+        "Authentication Success - Encrypting!",
         Toast.LENGTH_SHORT)
         .show()
 }
 ```
 
-
-
+This code can also be adjusted to decrypt data. This can be done by adjusting the `Cipher` initialisation parameters to set the mode to `Cipher.DECRYPT_MODE`, along with passing in the `IV` used during the encryption process. An example of this can be seen in the code snippet below.
 
 ```kotlin
 fun performBiometricAuthenticationDecrypt(){
@@ -268,6 +255,7 @@ fun performBiometricAuthenticationDecrypt(){
 
 }
 ```
+Just like before, upon successful authentication the corresponding `CryptoObject` will be available in the `onAuthenticationSucceeded` callback from `BiometricPrompt`. This `Cipher` object can then be used to decrypt a piece of data. This can be done using the same [cipher.doFinal](https://developer.android.com/reference/javax/crypto/Cipher.html#doFinal(byte%5B%5D)) method on the `Cipher object` with the value to decrypt as a parameter. An example of this can be seen in the snippet of code below.
 
 ```kotlin
 override fun onAuthenticationSucceeded(
@@ -277,15 +265,19 @@ override fun onAuthenticationSucceeded(
 
         val decryptedData = result.cryptoObject?.cipher?.doFinal(
             encryptedSuperSecretValue)!!
-        var uiResultData = "Decrypt: " + decryptedData?.toString(Charset.defaultCharset())
+        var uiResultData = "Decrypt: " +
+            decryptedData?.toString(Charset.defaultCharset())
 
         authResultTextView.setText(uiResultData)
 
-        Toast.makeText(applicationContext, "Authentication Success - Decrypting!",
+        Toast.makeText(applicationContext,
+            "Authentication Success - Decrypting!",
             Toast.LENGTH_SHORT)
             .show()
     }
 ```
+
+As can be seen below, the code presented can be used to securely access keys stored in the keystore to encrypt / decrypt data. The full source code can be found on my Github [here](https://github.com/arbitraryrw/biometric-prompt-demo/).
 
 <img src={biometircprompt_encrypt_decrypt_side_by_side} className={styles["screenshot"]} alt="Face and Fingerprint authentication prompt side by side"/>
 
@@ -294,7 +286,7 @@ The new Biometric APIs provide an easy to use solution for handling biometrics o
 
 With that being said, from a security perspective, these new biometric APIs introduce a risk by not allowing developers to control / restrict biometric modalities. Organisations may not feel comfortable with biometric x but may be comfortable with biometric y. Especially when handling sensitive information such as the key example in this post. Ideally, these APIs should provide some mechanism to control this, such as via an initialisation flag to BiometricPrompt or a Manifest permission. If this is an issue sticking with the deprecated FingerprintManager class is probably the best option.
 
-The full source code can be found on my Github [here](https://github.com/arbitraryrw/biometric-prompt-demo/). Additionally, Google provides a useful tutorial for integrating the new Biometric APIs which can be found [here](https://developer.android.com/training/sign-in/biometric-auth).
+The full source code can be found on my Github [here](https://github.com/arbitraryrw/biometric-prompt-demo/). Many of the code snippets used in this post were inspired by Google's tutorial on integrating the new Biometric APIs, I recommend checking this out [here](https://developer.android.com/training/sign-in/biometric-auth).
 
 # References and Further Reading
 - [Android - Biometric Security Overview](https://source.android.com/security/biometric)
