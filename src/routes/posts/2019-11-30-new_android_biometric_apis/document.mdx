@@ -217,6 +217,11 @@ private fun getCipher(): Cipher {
 Upon successful authentication the corresponding `CryptoObject` will be available in the `onAuthenticationSucceeded` callback from `BiometricPrompt`. This `Cipher` object can then be freely used to perform cryptographic operations. Notably, in this example the `Cipher` object is restricted to only performing encryption operations, as defined by the `Cipher.ENCRYPT_MODE` initialisation vector set in the previous example. To encrypt a piece of data use the [cipher.doFinal](https://developer.android.com/reference/javax/crypto/Cipher.html#doFinal(byte%5B%5D)) method on the `Cipher object` with the value to encrypt as a parameter. An example of this can be seen in the snippet of code below.
 
 ```kotlin
+val superSecretValue = "Sup3rSecr3tValueShh"
+lateinit var encryptedSuperSecretValue: ByteArray
+
+...
+
 override fun onAuthenticationSucceeded(
     result: BiometricPrompt.AuthenticationResult) {
     val authResultTextView = findViewById<TextView>(
@@ -240,6 +245,10 @@ override fun onAuthenticationSucceeded(
 This code can also be adjusted to decrypt data. This can be done by adjusting the `Cipher` initialisation parameters to set the mode to `Cipher.DECRYPT_MODE`, along with passing in the `IV` used during the encryption process. An example of this can be seen in the code snippet below.
 
 ```kotlin
+lateinit var iv: ByteArray
+
+...
+
 fun performBiometricAuthenticationDecrypt(){
     val decryptionCipher = getCipher()
     val decryptionSecretKey = getSecretKey()
@@ -256,9 +265,13 @@ fun performBiometricAuthenticationDecrypt(){
 
 }
 ```
-Just like before, upon successful authentication the corresponding `CryptoObject` will be available in the `onAuthenticationSucceeded` callback from `BiometricPrompt`. This `Cipher` object can then be used to decrypt a piece of data. This can be done using the same [cipher.doFinal](https://developer.android.com/reference/javax/crypto/Cipher.html#doFinal(byte%5B%5D)) method on the `Cipher object` with the value to decrypt as a parameter. An example of this can be seen in the snippet of code below.
+Just like before, upon successful authentication the corresponding `CryptoObject` will be available in the `onAuthenticationSucceeded` callback from `BiometricPrompt`. This `Cipher` object can then be used to decrypt a piece of data. This can be done by using the same [cipher.doFinal](https://developer.android.com/reference/javax/crypto/Cipher.html#doFinal(byte%5B%5D)) method on the `Cipher object` with the value to decrypt as a parameter. An example of this can be seen in the snippet of code below.
 
 ```kotlin
+lateinit var encryptedSuperSecretValue: ByteArray
+
+...
+
 override fun onAuthenticationSucceeded(
         result: BiometricPrompt.AuthenticationResult) {
         val authResultTextView = findViewById<TextView>(
@@ -268,8 +281,6 @@ override fun onAuthenticationSucceeded(
             encryptedSuperSecretValue)!!
         var uiResultData = "Decrypt: " +
             decryptedData?.toString(Charset.defaultCharset())
-
-        authResultTextView.setText(uiResultData)
 
         Toast.makeText(applicationContext,
             "Authentication Success - Decrypting!",
