@@ -1,21 +1,16 @@
 import styles from './document.module.css'
 
 import face_prompt_confirmation_side_by_side from './imgs/face_prompt_confirmation_side_by_side.png'
-
-import face_prompt_1 from './imgs/face_prompt_1.png'
-import face_prompt_2 from './imgs/face_prompt_2.png'
-import face_prompt_3 from './imgs/face_prompt_3.png'
-import face_prompt_error from './imgs/face_prompt_error.png'
-import face_prompt_confirmation_not_required_1 from './imgs/face_prompt_confirmation_not_required_1.png'
-import face_prompt_confirmation_not_required_2 from './imgs/face_prompt_confirmation_not_required_2.png'
-import finger_prompt_1 from './imgs/finger_prompt_1.png'
 import biometricprompt_architecture from './imgs/biometricprompt_architecture.png'
-
+import face_finger_biomericprompt_side_by_side from './imgs/face_finger_biomericprompt_side_by_side.png'
+import biometircprompt_encrypt_decrypt_side_by_side from './imgs/biometircprompt_encrypt_decrypt_side_by_side.png'
 
 <div className={styles["blogBody"]}>
 
 ## Introduction
 Earlier this year Google released two new APIs to handle Biometric authentication with Android 10. The [BiometricManager](https://developer.android.com/reference/androidx/biometric/BiometricManager.html#constants_1) and [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) classes. The purpose of these APIs is to provide a centralised mechanism for interfacing with biometric authentication mechanisms on Android, regardless of the hardware of the device i.e fingerprint / face.
+
+<img src={face_finger_biomericprompt_side_by_side} className={styles["screenshot"]} alt="Face and Fingerprint authentication prompt side by side"/>
 
 The main reason I’m writing this is because I found it very difficult to find any information on integrating [CryptoObjects](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject) with the new API, especially anything in Kotlin. With that in mind, the aim of this post is to talk about the new biometric architecture, to showcase a basic example of the new APIs using Crypto Objects, and highlight some of the inherent risks introduced with these new APIs.
 
@@ -201,19 +196,98 @@ Caused by: android.security.KeyStoreException: Key user not authenticated
 at android.security.KeyStore.getKeyStoreException(KeyStore.java:1292)
 ```
 
+Access to the key can be granted by the BiometricPrompt API on successful authentication. This is done by passing in the `Cipher` object as a parameter to the `biometricPrompt.authenticate` function along with the `biometricPromptInfo` as was done in the previous example. An example of this can be seen in the code snippet below with a `Cipher.ENCRYPT_MODE` key. Notably, the `getSecretKey` and `getCipher` wrapper functions are taken from [here](https://developer.android.com/training/sign-in/biometric-auth#crypto).
 
-## TODO REMOVE IMAGES
-<img src={face_prompt_1} className={styles["screenshot"]} alt="Facial recognition prompt" />
-<img src={face_prompt_2} className={styles["screenshot"]} alt="Facial recognition post authentication / pre confirmation" />
-<img src={face_prompt_3} className={styles["screenshot"]} alt="Facial recognition post authentication confirmation" />
-<img src={face_prompt_error} className={styles["screenshot"]} alt="Facial recognition prompt error" />
-<img src={face_prompt_confirmation_not_required_1} className={styles["screenshot"]} alt="Pre authentication - no user confirmation required" />
-<img src={face_prompt_confirmation_not_required_2} className={styles["screenshot"]} alt="Post authentication - no user confirmation required" />
-<img src={finger_prompt_1} className={styles["screenshot"]} alt="Fingerprint prompt" />
+```kotlin
+lateinit var iv: ByteArray
+
+fun performBiometricAuthenticationEncrypt(){
+    val cipher = getCipher()
+    val secretKey = getSecretKey()
+
+    cipher.init(Cipher.ENCRYPT_MODE, secretKey, SecureRandom())
+    iv = cipher.iv
+
+    biometricPrompt.authenticate(biometricPromptInfo,
+        BiometricPrompt.CryptoObject(cipher)
+    )
+}
+
+private fun getSecretKey(): SecretKey {
+    val keyStore = KeyStore.getInstance("AndroidKeyStore")
+
+    // Before the keystore can be accessed, it must be loaded.
+    keyStore.load(null)
+    return keyStore.getKey(KEY_NAME, null) as SecretKey
+}
+
+private fun getCipher(): Cipher {
+    return Cipher.getInstance(KeyProperties.KEY_ALGORITHM_AES + "/"
+            + KeyProperties.BLOCK_MODE_CBC + "/"
+            + KeyProperties.ENCRYPTION_PADDING_PKCS7)
+}
+```
+
+Upon successful authentication the corresponding `CryptoObject` will be available in the `onAuthenticationSucceeded` callback from `BiometricPrompt`.
+
+```kotlin
+override fun onAuthenticationSucceeded(
+    result: BiometricPrompt.AuthenticationResult) {
+    val authResultTextView = findViewById<TextView>(
+        R.id.authResultTextView)
+
+    encryptedSuperSecretValue = result.cryptoObject?.cipher?.doFinal(
+        superSecretValue.toByteArray(Charset.defaultCharset()))!!
+
+    var uiResultData = "Encrypt: " + encryptedSuperSecretValue.toString(Charset.defaultCharset())
+
+    authResultTextView.setText(uiResultData)
+
+    Toast.makeText(applicationContext, "Authentication Success - Encrypting!",
+        Toast.LENGTH_SHORT)
+        .show()
+}
+```
 
 
 
 
+```kotlin
+fun performBiometricAuthenticationDecrypt(){
+    val decryptionCipher = getCipher()
+    val decryptionSecretKey = getSecretKey()
+
+    if (::iv.isInitialized) {
+        decryptionCipher.init(Cipher.DECRYPT_MODE, decryptionSecretKey, IvParameterSpec(iv))
+
+        decryptBiometricPrompt.authenticate(
+            decryptBiometricPromptInfo,
+            BiometricPrompt.CryptoObject(decryptionCipher)
+        )
+    }
+
+}
+```
+
+```kotlin
+override fun onAuthenticationSucceeded(
+        result: BiometricPrompt.AuthenticationResult) {
+        val authResultTextView = findViewById<TextView>(
+            R.id.authResultTextView)
+
+        val decryptedData = result.cryptoObject?.cipher?.doFinal(
+            encryptedSuperSecretValue)!!
+        var uiResultData = "Decrypt: " + decryptedData?.toString(Charset.defaultCharset())
+
+        authResultTextView.setText(uiResultData)
+
+        Toast.makeText(applicationContext, "Authentication Success - Decrypting!",
+            Toast.LENGTH_SHORT)
+            .show()
+    }
+```
+
+<img src={biometircprompt_encrypt_decrypt_side_by_side} className={styles["screenshot"]} alt="Face and Fingerprint authentication prompt side by side"/>
 
 ## Conclusion
 The new Biometric APIs provide an easy to use solution for handling biometrics on Android. The abstracted logic makes it easy for a developer to integrate biometric authentication without having to worry about the modality supported by the device, i.e face / finger / iris. Additionally, from a development perspective the lifecycle aware and consistent UI components are really nice to work with.
