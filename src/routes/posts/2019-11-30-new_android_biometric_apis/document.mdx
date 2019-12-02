@@ -1,5 +1,7 @@
 import styles from './document.module.css'
 
+import face_prompt_confirmation_side_by_side from './imgs/face_prompt_confirmation_side_by_side.png'
+
 import face_prompt_1 from './imgs/face_prompt_1.png'
 import face_prompt_2 from './imgs/face_prompt_2.png'
 import face_prompt_3 from './imgs/face_prompt_3.png'
@@ -63,8 +65,8 @@ when (biometricManager.canAuthenticate()) {
 ```
 The `canAuthenticate` method returns one of 4 constant values that can be used to identify the biometric status of the device. Handle and act appropriately, next let's look at leveraging biometrics into this flow.
 
-## BiometricPrompt Usage
-The [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) class provides a consistent and centralised mechanism for managing the system-provided biometric dialog. First, let's look at building a prompt. This can be done by leveraging the builder method as seen below:
+## BiometricPrompt Usage - Showing a Dialogue
+The [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) class provides a consistent and centralised mechanism for managing the system-provided biometric dialog. First, let's look at building the BiometricPrompt PromptInfo object. This can be done by leveraging the builder method as seen below:
 
 ```kotlin
 var biometricPromptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -79,46 +81,65 @@ var biometricPromptInfo = BiometricPrompt.PromptInfo.Builder()
 
 Many of the APIs referenced in the snippet above are for setting cosmetic attributes such as `.setTitle` and `.setDescription`, used to set dialogue information. However the `setConfirmationRequired` and `setDeviceCredentialAllowed` are interesting from a security perspective.
 
-The `setConfirmationRequired` method is used to define whether or not the dialogue should require explicit user action when performing authentication. This is important when considering implicit biometric modalities like Face and Iris authentication which are passive by design. Meaning they don't require an explicit user action to complete. It is recommended to set this flag to `true` when performing high-risk actions such as making a purchase, or sending a payment. Low-risk actions such as re-authenticating a recently authenticated session may want to consider setting this flag to `false`. More information on this API can be found [here](https://developer.android.com/reference/androidx/biometric/BiometricPrompt.PromptInfo.Builder#setConfirmationRequired(boolean)). See the image below for a side by side comparison.
+The `setConfirmationRequired` method is used to define whether or not the dialogue should require explicit user action when performing authentication. This is important when considering implicit biometric modalities like Face and Iris authentication which are passive by design. Meaning they don't require an explicit user action to complete. It is recommended to set this flag to `true` when performing high risk actions such as making a purchase, or sending a payment. Low-risk actions such as re-authenticating a recently authenticated session may want to consider setting this flag to `false`. Notably, this setting acts as a hint to the system, meaning the system may choose to ignore the flag. For example, if the user disables implicit authentication in Settings, or if it does not apply to a modality such as fingerprint. More information on this API can be found [here](https://developer.android.com/reference/androidx/biometric/BiometricPrompt.PromptInfo.Builder#setConfirmationRequired(boolean)). See the image below for a side by side comparison.
+
+<img src={face_prompt_confirmation_side_by_side} className={styles["screenshot"]} alt="BiometricPrompt setConfirmationRequired side by side" />
+
+The `setDeviceCredentialAllowed` method is used to define whether or not the dialogue should give the user the option to authenticate with their device PIN, pattern, or password. This allows the user to choose between authenticating using their biometric or their device authentication method. There are a number of additional considerations when enabling this API, such as checking if the device is secured with a PIN, pattern or password. This can be done by using the [KeyguardManager.isDeviceSecure](https://developer.android.com/reference/android/app/KeyguardManager.html#isDeviceSecure()) and [KeyguardManager.isKeyguardSecure](https://developer.android.com/reference/android/app/KeyguardManager.html#isKeyguardSecure()) APIs. More information on this API can be found [here](https://developer.android.com/reference/androidx/biometric/BiometricPrompt.PromptInfo.Builder#setDeviceCredentialAllowed(boolean)). For the purposes of this example this flag is disabled.
+
+The next step is to initialise the BiometricPrompt itself and create handlers for the many authentication callbacks BiometricPrompt can return, a full list of these callbacks can be found [here](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.AuthenticationCallback). See below a basic example of this to configure this.
 
 ```kotlin
-biometricPrompt = BiometricPrompt(this, executor,
-    object : BiometricPrompt.AuthenticationCallback() {
-        override fun onAuthenticationError(errorCode: Int,
-                                           errString: CharSequence) {
-            super.onAuthenticationError(errorCode, errString)
-            Toast.makeText(applicationContext,
-                "Authentication error: $errString", Toast.LENGTH_SHORT)
-                .show()
-        }
+val executor = ContextCompat.getMainExecutor(this)
 
-        override fun onAuthenticationSucceeded(
-            result: BiometricPrompt.AuthenticationResult) {
-              super.onAuthenticationSucceeded(result)
-              val authenticatedCryptoObject: BiometricPrompt.CryptoObject? =
-                  result.getCryptoObject()
-              // User has verified the signature, cipher, or message
-              // authentication code (MAC) associated with the crypto object,
-              // so you can use it in your app's crypto-driven workflows.
+val biometricPrompt = BiometricPrompt(this, executor,
+  object : BiometricPrompt.AuthenticationCallback() {
+      override fun onAuthenticationError(errorCode: Int,
+                                         errString: CharSequence) {
+          super.onAuthenticationError(errorCode, errString)
+          Toast.makeText(applicationContext,
+              "Authentication error: $errString", Toast.LENGTH_SHORT)
+              .show()
+      }
+
+      override fun onAuthenticationSucceeded(
+          result: BiometricPrompt.AuthenticationResult) {
+            super.onAuthenticationSucceeded(result)
+            val authenticatedCryptoObject: BiometricPrompt.CryptoObject?
+              = result.getCryptoObject()
+            // User has verified the signature, cipher, or message
+            // authentication code (MAC) associated with the crypto
+            //object, use this in your app's crypto-driven workflows.
 
 
-              Toast.makeText(applicationContext, "Authentication Success!",
-                  Toast.LENGTH_SHORT)
-                  .show()
-        }
-
-        override fun onAuthenticationFailed() {
-            super.onAuthenticationFailed()
-            Toast.makeText(applicationContext, "Authentication failed",
+            Toast.makeText(applicationContext, "Authentication Success!",
                 Toast.LENGTH_SHORT)
                 .show()
-        }
-    })
+      }
+
+      override fun onAuthenticationFailed() {
+          super.onAuthenticationFailed()
+          Toast.makeText(applicationContext, "Authentication failed",
+              Toast.LENGTH_SHORT)
+              .show()
+      }
+  })
 ```
+
+The authentication process can then begin by invoking the [authenticate](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.html#authenticate(android.os.CancellationSignal,%20java.util.concurrent.Executor,%20android.hardware.biometrics.BiometricPrompt.AuthenticationCallback)) method on the `BiomtricPromt` object and passing in the `BiometricPrompt.PromptInfo` object we created earlier as a paramter. An example of this can be seen below:
+
+```kotlin
+biometricPrompt.authenticate(promptInfo)
+```
+
+This will then present the biometric dialogue seen earlier. Depending on the result of the biometric authentication process this will then invoke the callback logic we registered earlier. In this example it will simply display a toast message.
+
+## BiometricPrompt Usage - Using Crypto Objects
+In the developer documentation there are two available versions of the `BiometricPrompt.authenticate` API as can be seen [here](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.html#public-methods_1). In the previous example we used the version that does not leverage [BiometricPrompt.CryptoObject](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject.html) as a parameter, lets take look a look at the version that does.
+
 
 
 ## TODO REMOVE IMAGES
-
 <img src={face_prompt_1} className={styles["screenshot"]} alt="Facial recognition prompt" />
 <img src={face_prompt_2} className={styles["screenshot"]} alt="Facial recognition post authentication / pre confirmation" />
 <img src={face_prompt_3} className={styles["screenshot"]} alt="Facial recognition post authentication confirmation" />
