@@ -26,8 +26,27 @@ The two new APIs superseed the old [FingerprintManager](https://developer.androi
 
 <img src={biometricprompt_architecture} className={styles["screenshot"]} alt="Image Source: https://source.android.com/security/biometric#implementation" />
 
+According to the developer documentation [here](https://source.android.com/security/biometric): `"All biometric implementations must meet security specifications and have a strong rating in order to participate in the BiometricPrompt class"`. For more information on the guidelines, see [here](https://source.android.com/compatibility/android-cdd#7_3_10_biometric_sensors) and [here](https://source.android.com/security/biometric/measure#strong-weak-unlocks).
 
-## Example
+## BiometricManager Usage
+The [BiometricManager](https://developer.android.com/reference/androidx/biometric/BiometricManager.html#constants_1) class provides a centralised mechanism for querying the availability of biometric authentication on the device.
+
+
+```kotlin
+when (biometricManager.canAuthenticate()) {
+    BiometricManager.BIOMETRIC_SUCCESS ->
+        println("Biometrics available on the device")
+    BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
+        println("No biometric features available on this device.")
+    BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
+        println("Biometric features are currently unavailable.")
+    BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
+        println("User has not setup biometrics with their account.")
+}
+```
+## BiometricPrompt Usage [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt)
+
+## TODO REMOVE IMAGES
 
 <img src={face_prompt_1} className={styles["screenshot"]} alt="Facial recognition prompt" />
 <img src={face_prompt_2} className={styles["screenshot"]} alt="Facial recognition post authentication / pre confirmation" />
