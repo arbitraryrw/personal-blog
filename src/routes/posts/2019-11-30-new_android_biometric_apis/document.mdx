@@ -79,7 +79,7 @@ var biometricPromptInfo = BiometricPrompt.PromptInfo.Builder()
             .build()
 ```
 
-Many of the APIs referenced in the snippet above are for setting cosmetic attributes such as `.setTitle` and `.setDescription`, used to set dialogue information. However the `setConfirmationRequired` and `setDeviceCredentialAllowed` are interesting from a security perspective.
+Many of the APIs referenced in the snippet above are for setting cosmetic attributes such as `setTitle` and `setDescription`, used to set dialogue information. However the `setConfirmationRequired` and `setDeviceCredentialAllowed` are interesting from a security perspective.
 
 The `setConfirmationRequired` method is used to define whether or not the dialogue should require explicit user action when performing authentication. This is important when considering implicit biometric modalities like Face and Iris authentication which are passive by design. Meaning they don't require an explicit user action to complete. It is recommended to set this flag to `true` when performing high risk actions such as making a purchase, or sending a payment. Low-risk actions such as re-authenticating a recently authenticated session may want to consider setting this flag to `false`. Notably, this setting acts as a hint to the system, meaning the system may choose to ignore the flag. For example, if the user disables implicit authentication in Settings, or if it does not apply to a modality such as fingerprint. More information on this API can be found [here](https://developer.android.com/reference/androidx/biometric/BiometricPrompt.PromptInfo.Builder#setConfirmationRequired(boolean)). See the image below for a side by side comparison.
 
@@ -134,9 +134,72 @@ biometricPrompt.authenticate(promptInfo)
 
 This will then present the biometric dialogue seen earlier. Depending on the result of the biometric authentication process this will then invoke the callback logic we registered earlier. In this example it will simply display a toast message.
 
-## BiometricPrompt Usage - Using Crypto Objects
-In the developer documentation there are two available versions of the `BiometricPrompt.authenticate` API as can be seen [here](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.html#public-methods_1). In the previous example we used the version that does not leverage [BiometricPrompt.CryptoObject](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject.html) as a parameter, lets take look a look at the version that does.
+## BiometricPrompt Usage - Crypto Objects
+In the developer documentation there are two available versions of the `BiometricPrompt.authenticate` API as can be seen [here](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.html#public-methods_1). In the previous example we used the straightforward version where you just pass in a `BiometriPrompt.PromptInfo` object and that’s it. Now let’s look at the version that allows you to handle [BiometricPrompt.CryptoObject](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject.html)s.
 
+This API provides a mechanism for incorporating cryptographic operations into biometric authentication workflows. From a security perspective this is interesting as it presents an opportunity to protect sensitive information within an application without horribly impacting the user experience. Currently, the framework supports the following cryptographic objects: Signature, Cipher, and Mac. For the purposes of this example, the [cipher](https://developer.android.com/reference/javax/crypto/Cipher.html) object is used. First lets start by generating an AES key and storing it in the keystore. The example leverages the following useful wrapper functions taken from [here](https://developer.android.com/training/sign-in/biometric-auth#crypto).
+
+```kotlin
+
+private fun generateSecretKey(keyGenParameterSpec: KeyGenParameterSpec) {
+    val keyGenerator = KeyGenerator.getInstance(
+        KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    keyGenerator.init(keyGenParameterSpec)
+    keyGenerator.generateKey()
+}
+
+private fun getSecretKey(): SecretKey {
+    val keyStore = KeyStore.getInstance("AndroidKeyStore")
+
+    // Before the keystore can be accessed, it must be loaded.
+    keyStore.load(null)
+    return keyStore.getKey(KEY_NAME, null) as SecretKey
+}
+
+private fun getCipher(): Cipher {
+    return Cipher.getInstance(KeyProperties.KEY_ALGORITHM_AES + "/"
+            + KeyProperties.BLOCK_MODE_CBC + "/"
+            + KeyProperties.ENCRYPTION_PADDING_PKCS7)
+}
+```
+
+This can then be used with the `KeyGenParameterSpec.Builder` class to store the newly generated key in the keystore as can be seen below. Detailed documentation on this API can be found [here](https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder). In this example the key is restricted to require user authentication before it can be used, as identified by the `setUserAuthenticationRequired` flag. In addition, the `setInvalidatedByBiometricEnrollment` flag is enabled, meaning the key will be invalidated if the user registers a new biometric credential, such as a new fingerprint. Both of these settings are recommended, however, the latter is only usable on Android 7.0 (API level 24) devices or higher.
+
+```kotlin
+val KEY_NAME = "insert_obfuscated_keyname"
+
+if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N){
+  generateSecretKey(KeyGenParameterSpec.Builder(
+      KEY_NAME,
+      KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+      .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+      .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+      .setUserAuthenticationRequired(true)
+      // Invalidate the keys if the user has registered a new biometric
+      // credential, such as a new fingerprint. Can call this method only
+      // on Android 7.0 (API level 24) or higher. The variable
+      // "invalidatedByBiometricEnrollment" is true by default.
+      .setInvalidatedByBiometricEnrollment(true)
+      .build())
+}
+else{
+  generateSecretKey(KeyGenParameterSpec.Builder(
+      KEY_NAME,
+      KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+      .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+      .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+      .setUserAuthenticationRequired(true)
+      .build())
+}
+```
+
+If the application attempts to access this key without the user performing authentication then the action will fail and an exception will be raised, as can be seen below.
+
+```
+at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:930) 
+Caused by: android.security.KeyStoreException: Key user not authenticated
+at android.security.KeyStore.getKeyStoreException(KeyStore.java:1292)
+```
 
 
 ## TODO REMOVE IMAGES
@@ -148,11 +211,6 @@ In the developer documentation there are two available versions of the `Biometri
 <img src={face_prompt_confirmation_not_required_2} className={styles["screenshot"]} alt="Post authentication - no user confirmation required" />
 <img src={finger_prompt_1} className={styles["screenshot"]} alt="Fingerprint prompt" />
 
-```
-at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:930) 
-Caused by: android.security.KeyStoreException: Key user not authenticated
-at android.security.KeyStore.getKeyStoreException(KeyStore.java:1292)
-```
 
 
 
