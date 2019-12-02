@@ -17,7 +17,7 @@ Earlier this year Google released two new APIs to handle Biometric authenticatio
 
 The main reason I’m writing this is because I found it very difficult to find any information on integrating [CryptoObjects](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject) with the new API, especially anything in Kotlin. With that in mind, the aim of this post is to talk about the new biometric architecture, to showcase a basic example of the new APIs using Crypto Objects, and highlight some of the inherent risks introduced with these new APIs.
 
-##Background
+## Background
 These APIs have been in alpha / beta since [last September](https://mvnrepository.com/artifact/androidx.biometric/biometric), however, they have only just been fully released, as can be seen [here](https://mvnrepository.com/artifact/androidx.biometric/biometric/1.0.0
 ). Originally it was rumoured that these APIs were to handle Facial Recognition exclusively because of this [commit](https://android-review.googlesource.com/c/platform/frameworks/base/+/640360/), however this is not true. These APIs are built with the intention of unifying biometric authentication mechanisms. They currently support fingerprint and face authentication with the view of integrating other modalities in the future, such as [iris](https://source.android.com/security/biometric#implementation).
 
@@ -93,10 +93,17 @@ biometricPrompt = BiometricPrompt(this, executor,
 
         override fun onAuthenticationSucceeded(
             result: BiometricPrompt.AuthenticationResult) {
+              super.onAuthenticationSucceeded(result)
+              val authenticatedCryptoObject: BiometricPrompt.CryptoObject? =
+                  result.getCryptoObject()
+              // User has verified the signature, cipher, or message
+              // authentication code (MAC) associated with the crypto object,
+              // so you can use it in your app's crypto-driven workflows.
 
-            Toast.makeText(applicationContext, "Authentication Success!",
-                Toast.LENGTH_SHORT)
-                .show()
+
+              Toast.makeText(applicationContext, "Authentication Success!",
+                  Toast.LENGTH_SHORT)
+                  .show()
         }
 
         override fun onAuthenticationFailed() {
@@ -127,86 +134,11 @@ at android.security.KeyStore.getKeyStoreException(KeyStore.java:1292)
 
 
 
-```kotlin
-val biometricManager = BiometricManager.from(this)
-when (biometricManager.canAuthenticate()) {
-    BiometricManager.BIOMETRIC_SUCCESS ->
-        // Perform post authentication logic
-    BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-        println("No biometric features available on this device.")
-    BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-        println("Biometric features are currently unavailable.")
-    BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
-        println("User has no biometrics with their account.")
-}
-```
 
-For further information on what each authentication response means refer to the developer docs [here](https://developer.android.com/reference/androidx/biometric/BiometricManager.html#constants_1).
+## Conclusion
+The new Biometric APIs provide an easy to use solution for handling biometrics on Android. The abstracted logic makes it easy for a developer to integrate biometric authentication without having to worry about the modality supported by the device, i.e face / finger / iris. Additionally, from a development perspective the lifecycle aware and consistent UI components are really nice to work with.
 
-
-```kotlin
-fun showBiometricPrompt() {
-    val promptInfo = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("Biometric Example")
-        .setDescription("Biometric login for my app")
-        .setSubtitle("Log in using your biometric credential")
-        .setNegativeButtonText("Abort biometric login")
-        .setConfirmationRequired(false)
-        .setDeviceCredentialAllowed(false)
-        .build()
-...
-}
-```
-
-
-```kotlin
-val biometricPrompt = BiometricPrompt(this, executor,
-    object : BiometricPrompt.AuthenticationCallback() {
-        override fun onAuthenticationError(errorCode: Int,
-                                           errString: CharSequence) {
-            super.onAuthenticationError(errorCode, errString)
-            Toast.makeText(applicationContext,
-                "Authentication error: $errString", Toast.LENGTH_SHORT)
-                .show()
-
-            if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON){
-                println("Error: negative button pressed.")
-            }
-
-            println("AUTH ERROR")
-        }
-
-        override fun onAuthenticationSucceeded(
-            result: BiometricPrompt.AuthenticationResult) {
-            super.onAuthenticationSucceeded(result)
-            val authenticatedCryptoObject: BiometricPrompt.CryptoObject? =
-                result.getCryptoObject()
-            // User has verified the signature, cipher, or message
-            // authentication code (MAC) associated with the crypto object,
-            // so you can use it in your app's crypto-driven workflows.
-
-            val authResultTextView = findViewById<TextView>(R.id.authResultTextView)
-
-            println("[+] Successful authentication, yahoo!")
-
-            authResultTextView.setText(Successfully Authenticated")
-        }
-
-        override fun onAuthenticationFailed() {
-            super.onAuthenticationFailed()
-            Toast.makeText(applicationContext, "Authentication failed",
-                Toast.LENGTH_SHORT)
-                .show()
-
-            println("Biometric auth failed")
-        }
-    })
-
-// Displays the "log in" prompt.
-biometricPrompt.authenticate(promptInfo)
-
-```
-
+With that being said, from a security perspective, these new biometric APIs introduce a risk by not allowing developers to control / restrict biometric modalities. Organisations may not feel comfortable with biometric x but may be comfortable with biometric y. Especially when handling sensitive information such as the key example in this post. Ideally, these APIs should provide some mechanism to control this, such as via an initialisation flag to BiometricPrompt or a Manifest permission. If this is an issue sticking with the deprecated FingerprintManager class is probably the best option.
 
 The full source code can be found on my Github [here](https://github.com/arbitraryrw/biometric-prompt-demo/). Additionally, Google provides a useful tutorial for integrating the new Biometric APIs which can be found [here](https://developer.android.com/training/sign-in/biometric-auth).
 
