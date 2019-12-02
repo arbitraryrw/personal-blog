@@ -31,8 +31,7 @@ According to the developer documentation [here](https://source.android.com/secur
 ## Project setup
 In order to leverage the new APIs, the project must include the androidx biometric dependency and have the required permission present in the Android Manifest.
 
-#### Androidx Biometric Project Dependency
-To add the androidx biometric library to an application simply reference it in the project's dependencies in the `app/build.gradle` file, as seen below:
+Add the androidx biometric library to the application by referencing it in the project's dependency list found in `app/build.gradle`, as seen below:
 
 ```gradle
 dependencies {
@@ -40,7 +39,6 @@ dependencies {
 }
 ```
 
-#### Required Permission In Android Manifest
 Add the `USE_BIOMETRIC` permission to the project's Android manifest file found in `app/src/main/AndroidManifest.xml`, as seen below:
 
 ```xml
