@@ -15,7 +15,7 @@ import biometricprompt_architecture from './imgs/biometricprompt_architecture.pn
 ## Introduction
 Earlier this year Google released two new APIs to handle Biometric authentication with Android 10. The [BiometricManager](https://developer.android.com/reference/androidx/biometric/BiometricManager.html#constants_1) and [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) classes. The purpose of these APIs is to provide a centralised mechanism for interfacing with biometric authentication mechanisms on Android, regardless of the hardware of the device i.e fingerprint / face.
 
-The main reason I’m writing this is because I found it very difficult to find any information on integrating [CryptoObjects](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject) with the new API. With that in mind, the aim of this post is to talk about the new biometric architecture, to showcase a basic example of the new APIs using Crypto Objects, and highlight some of the inherent risks introduced with these new APIs.
+The main reason I’m writing this is because I found it very difficult to find any information on integrating [CryptoObjects](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject) with the new API, especially anything in Kotlin. With that in mind, the aim of this post is to talk about the new biometric architecture, to showcase a basic example of the new APIs using Crypto Objects, and highlight some of the inherent risks introduced with these new APIs.
 
 ##Background
 These APIs have been in alpha / beta since [last September](https://mvnrepository.com/artifact/androidx.biometric/biometric), however, they have only just been fully released, as can be seen [here](https://mvnrepository.com/artifact/androidx.biometric/biometric/1.0.0
@@ -28,9 +28,28 @@ The two new APIs superseed the old [FingerprintManager](https://developer.androi
 
 According to the developer documentation [here](https://source.android.com/security/biometric): `"All biometric implementations must meet security specifications and have a strong rating in order to participate in the BiometricPrompt class"`. For more information on the guidelines, see [here](https://source.android.com/compatibility/android-cdd#7_3_10_biometric_sensors) and [here](https://source.android.com/security/biometric/measure#strong-weak-unlocks).
 
-## BiometricManager Usage
-The [BiometricManager](https://developer.android.com/reference/androidx/biometric/BiometricManager.html#constants_1) class provides a centralised mechanism for querying the availability of biometric authentication on the device.
+## Project setup
+In order to leverage the new APIs, the project must include the androidx biometric dependency and have the required permission present in the Android Manifest.
 
+#### Androidx Biometric Project Dependency
+To add the androidx biometric library to an application simply reference it in the project's dependencies in the `app/build.gradle` file, as seen below:
+
+```gradle
+dependencies {
+    implementation 'androidx.biometric:biometric:1.0.0'
+}
+```
+
+#### Required Permission In Android Manifest
+Add the `USE_BIOMETRIC` permission to the project's Android manifest file found in `app/src/main/AndroidManifest.xml`, as seen below:
+
+```xml
+<uses-permission android:name="android.permission.USE_BIOMETRIC"
+    android:requiredFeature="false"/>
+```
+
+## BiometricManager Usage
+The [BiometricManager](https://developer.android.com/reference/androidx/biometric/BiometricManager.html#constants_1) class provides a centralised mechanism for querying the availability of biometric authentication on the device. Notably, under the hood this will invoke the [FingerprintManagerCompat](https://developer.android.com/reference/androidx/core/hardware/fingerprint/FingerprintManagerCompat.html) class on pre Android P devices. A simple example of how to invoke this method can be seen below:
 
 ```kotlin
 when (biometricManager.canAuthenticate()) {
@@ -44,7 +63,53 @@ when (biometricManager.canAuthenticate()) {
         println("User has not setup biometrics with their account.")
 }
 ```
-## BiometricPrompt Usage [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt)
+The `canAuthenticate` method returns one of 4 constant values that can be used to identify the biometric status of the device. Handle and act appropriately, next let's look at leveraging biometrics into this flow.
+
+## BiometricPrompt Usage
+[BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) class provides a consistent and centralised mechanism for managing the system-provided biometric dialog. First, let's look at building a prompt. This can be done by leveraging the builder method as seen below:
+
+```kotlin
+biometricPromptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Nik.re Login")
+            .setSubtitle("Biometric Auth")
+            .setDescription("Performing x function to do y")
+            .setNegativeButtonText("Abort biometric login")
+            .setConfirmationRequired(true)
+            .setDeviceCredentialAllowed(false)
+            .build()
+```
+
+Many of the APIs referenced in the snippet above are for setting cosmetic attriubutes such as `.setTitle` and `.setDescription`, used to set dialogue information.
+
+
+```kotlin
+biometricPrompt = BiometricPrompt(this, executor,
+    object : BiometricPrompt.AuthenticationCallback() {
+        override fun onAuthenticationError(errorCode: Int,
+                                           errString: CharSequence) {
+            super.onAuthenticationError(errorCode, errString)
+            Toast.makeText(applicationContext,
+                "Authentication error: $errString", Toast.LENGTH_SHORT)
+                .show()
+        }
+
+        override fun onAuthenticationSucceeded(
+            result: BiometricPrompt.AuthenticationResult) {
+
+            Toast.makeText(applicationContext, "Authentication Success!",
+                Toast.LENGTH_SHORT)
+                .show()
+        }
+
+        override fun onAuthenticationFailed() {
+            super.onAuthenticationFailed()
+            Toast.makeText(applicationContext, "Authentication failed",
+                Toast.LENGTH_SHORT)
+                .show()
+        }
+    })
+```
+
 
 ## TODO REMOVE IMAGES
 
@@ -150,7 +215,7 @@ The full source code can be found on my Github [here](https://github.com/arbitra
 # References and Further Reading
 - [Android - Biometric Security Overview](https://source.android.com/security/biometric)
 - [Android - Measuring Biometric Security](https://source.android.com/security/biometric/measure#metrics)
-- [Google Source - Biometric Classes](https://android.googlesource.com/platform/frameworks/base/+/master/core/java/android/hardware/biometrics)
+- [Google Source - Biometric APIs](https://android.googlesource.com/platform/frameworks/base/+/master/core/java/android/hardware/biometrics)
 - [Developer Docs - BiometricManager](https://developer.android.com/reference/androidx/biometric/BiometricManager)
 - [Developer Docs - BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt)
 - [Developer Docs - Basic Integration Guide](https://developer.android.com/training/sign-in/biometric-auth)
