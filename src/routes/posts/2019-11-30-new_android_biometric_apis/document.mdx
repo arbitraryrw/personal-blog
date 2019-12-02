@@ -7,16 +7,43 @@ import face_prompt_error from './imgs/face_prompt_error.png'
 import face_prompt_confirmation_not_required_1 from './imgs/face_prompt_confirmation_not_required_1.png'
 import face_prompt_confirmation_not_required_2 from './imgs/face_prompt_confirmation_not_required_2.png'
 import finger_prompt_1 from './imgs/finger_prompt_1.png'
+import biometricprompt_architecture from './imgs/biometricprompt_architecture.png'
 
 
 <div className={styles["blogBody"]}>
 
-# Introduction
-android
+## Introduction
+Earlier this year Google released two new APIs to handle Biometric authentication with Android 10. The [BiometricManager](https://developer.android.com/reference/androidx/biometric/BiometricManager.html#constants_1) and [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) classes. The purpose of these APIs is to provide a centralised mechanism for interfacing with biometric authentication mechanisms on Android, regardless of the hardware of the device i.e fingerprint / face.
+
+The main reason I’m writing this is because I found it very difficult to find any information on integrating [CryptoObjects](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject) with the new API. With that in mind, the aim of this post is to talk about the new biometric architecture, to showcase a basic example of the new APIs using Crypto Objects, and highlight some of the inherent risks introduced with these new APIs.
+
+##Background
+These APIs have been in alpha / beta since [last September](https://mvnrepository.com/artifact/androidx.biometric/biometric), however, they have only just been fully released, as can be seen [here](https://mvnrepository.com/artifact/androidx.biometric/biometric/1.0.0
+). Originally it was rumoured that these APIs were to handle Facial Recognition exclusively because of this [commit](https://android-review.googlesource.com/c/platform/frameworks/base/+/640360/), however this is not true. These APIs are built with the intention of unifying biometric authentication mechanisms. They currently support fingerprint and face authentication with the view of integrating other modalities in the future, such as [iris](https://source.android.com/security/biometric#implementation).
+
+## New Biometric Architecture
+The two new APIs superseed the old [FingerprintManager](https://developer.android.com/reference/android/hardware/fingerprint/FingerprintManager) that was used for handling fingerprint biometrics on Android devices. Notably, the [FingerprintManager](https://developer.android.com/reference/android/hardware/fingerprint/FingerprintManager) class was deprecated in API level 28. The flow diagram across android versions can be seen below, the original image can be found in the Android Developer documentation [here](https://source.android.com/security/biometric#implementation).
+
+<img src={biometricprompt_architecture} className={styles["screenshot"]} alt="Image Source: https://source.android.com/security/biometric#implementation" />
+
+
+## Example
 
 <img src={face_prompt_1} className={styles["screenshot"]} alt="Facial recognition prompt" />
+<img src={face_prompt_2} className={styles["screenshot"]} alt="Facial recognition post authentication / pre confirmation" />
+<img src={face_prompt_3} className={styles["screenshot"]} alt="Facial recognition post authentication confirmation" />
+<img src={face_prompt_error} className={styles["screenshot"]} alt="Facial recognition prompt error" />
+<img src={face_prompt_confirmation_not_required_1} className={styles["screenshot"]} alt="Pre authentication - no user confirmation required" />
+<img src={face_prompt_confirmation_not_required_2} className={styles["screenshot"]} alt="Post authentication - no user confirmation required" />
+<img src={finger_prompt_1} className={styles["screenshot"]} alt="Fingerprint prompt" />
 
-## Background
+```
+at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:930) 
+Caused by: android.security.KeyStoreException: Key user not authenticated
+at android.security.KeyStore.getKeyStoreException(KeyStore.java:1292)
+```
+
+
 
 ```kotlin
 val biometricManager = BiometricManager.from(this)
