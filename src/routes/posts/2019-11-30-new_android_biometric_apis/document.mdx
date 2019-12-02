@@ -18,7 +18,7 @@ Earlier this year Google released two new APIs to handle Biometric authenticatio
 The main reason I’m writing this is because I found it very difficult to find any information on integrating [CryptoObjects](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject) with the new API, especially anything in Kotlin. With that in mind, the aim of this post is to talk about the new biometric architecture, to showcase a basic example of the new APIs using Crypto Objects, and highlight some of the inherent risks introduced with these new APIs.
 
 ## Background
-These APIs have been in alpha / beta since [last September](https://mvnrepository.com/artifact/androidx.biometric/biometric), however, they have only just been fully released, as can be seen [here](https://mvnrepository.com/artifact/androidx.biometric/biometric/1.0.0
+The new Biometric APIs have been in alpha / beta since [last September](https://mvnrepository.com/artifact/androidx.biometric/biometric), however, they have only just been fully released, as can be seen [here](https://mvnrepository.com/artifact/androidx.biometric/biometric/1.0.0
 ). Originally it was rumoured that these APIs were to handle Facial Recognition exclusively because of this [commit](https://android-review.googlesource.com/c/platform/frameworks/base/+/640360/), however this is not true. These APIs are built with the intention of unifying biometric authentication mechanisms. They currently support fingerprint and face authentication with the view of integrating other modalities in the future, such as [iris](https://source.android.com/security/biometric#implementation).
 
 ## New Biometric Architecture
@@ -64,10 +64,10 @@ when (biometricManager.canAuthenticate()) {
 The `canAuthenticate` method returns one of 4 constant values that can be used to identify the biometric status of the device. Handle and act appropriately, next let's look at leveraging biometrics into this flow.
 
 ## BiometricPrompt Usage
-[BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) class provides a consistent and centralised mechanism for managing the system-provided biometric dialog. First, let's look at building a prompt. This can be done by leveraging the builder method as seen below:
+The [BiometricPrompt](https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt) class provides a consistent and centralised mechanism for managing the system-provided biometric dialog. First, let's look at building a prompt. This can be done by leveraging the builder method as seen below:
 
 ```kotlin
-biometricPromptInfo = BiometricPrompt.PromptInfo.Builder()
+var biometricPromptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Nik.re Login")
             .setSubtitle("Biometric Auth")
             .setDescription("Performing x function to do y")
@@ -77,8 +77,9 @@ biometricPromptInfo = BiometricPrompt.PromptInfo.Builder()
             .build()
 ```
 
-Many of the APIs referenced in the snippet above are for setting cosmetic attriubutes such as `.setTitle` and `.setDescription`, used to set dialogue information.
+Many of the APIs referenced in the snippet above are for setting cosmetic attributes such as `.setTitle` and `.setDescription`, used to set dialogue information. However the `setConfirmationRequired` and `setDeviceCredentialAllowed` are interesting from a security perspective.
 
+The `setConfirmationRequired` method is used to define whether or not the dialogue should require explicit user action when performing authentication. This is important when considering implicit biometric modalities like Face and Iris authentication which are passive by design. Meaning they don't require an explicit user action to complete. It is recommended to set this flag to `true` when performing high-risk actions such as making a purchase, or sending a payment. Low-risk actions such as re-authenticating a recently authenticated session may want to consider setting this flag to `false`. More information on this API can be found [here](https://developer.android.com/reference/androidx/biometric/BiometricPrompt.PromptInfo.Builder#setConfirmationRequired(boolean)). See the image below for a side by side comparison.
 
 ```kotlin
 biometricPrompt = BiometricPrompt(this, executor,
