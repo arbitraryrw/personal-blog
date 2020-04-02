@@ -1,0 +1,72 @@
+import styles from './document.module.css'
+
+import state_of_flow_diagram from './imgs/state_of_flow_diagram.PNG'
+
+<div className={styles["blogBody"]}>
+
+# Introduction
+The purpose of this post is to highlight why I decided to pursue the AWS [Associate Solutions Architect](https://aws.amazon.com/certification/certified-solutions-architect-associate/) certification, what resources I used, and what I should have done differently. This is meant to give an impartial view of the whole experience. 
+
+Before getting into the content it is worth pointing out that picking to do this at the end of March was a terrible idea. This is because Amazon had just started phasing out the SAA-C01 exam and started replacing it with the new version, SAA-C02 that released 23rd of March 2020. I decided that I would go ahead anyway and booked the SAA-C02 exam as it is the most recent. This put me in an awkward position because all of the third party training courses did not have material to support the updated curriculum.
+
+# Background 
+I’ve been interested in cloud technologies since I was at university. The ability to build highly available, highly redundant, and secure systems without having to pay extortionate fees is neat. Despite my affinity for the technology, I never really pushed myself to learn about it and eventually fell out of touch with what was relevant. 
+
+About a month ago I stumbled across a whitepaper on using [cloudformation](https://aws.amazon.com/cloudformation/) and [lambda](https://aws.amazon.com/lambda/) to create severless systems. After reading that I decided I wanted to know more about AWS and the technology in general. I came to the conclusion that the best way to do that would be to push myself and get the associate solution architect certification. My main objective was to skill-up, the certification was just a bonus.
+
+# Methodology
+After doing a bit of research and asking around I decided to use a third party training provider as my primary source of learning. This was appealing because it gave me the opportunity to do self paced labs / lectures whenever I had time. However, due to the poor timing of the exam transition, it also meant that none of the third party provider would have up to date material for the new exam. I decided to compensate for this by massively over preparing and using the course material as a starting point.
+
+I essentially spent three weeks doing a combination of the following activities:
+
+- Going through the labs / lectures on [Cloud Guru] (https://acloud.guru/)
+- Reading service [FAQs](https://aws.amazon.com/faqs/) relating to the lectures
+- Reading [Whitepapers](https://aws.amazon.com/whitepapers/?whitepapers-main.sort-by=item.additionalFields.sortDate&whitepapers-main.sort-order=desc)
+- Creating my own projects to build things / play around with AWS
+- Quiz myself using the FAQs / Whitepapers regularly
+
+The combination of these activities allowed me to achieve a state of flow in which I was able to learn something new, practically apply it, and then challenge myself. Whenever I felt like I was overwhelmed I would stop, practically apply the problem, and make sure I fully understood it to stay out of anxiety territory. Fortunately due to my aggressive plan there was no danger of getting bored. Here is a [Csikszentmihalyi's Flow Diagram](https://www.researchgate.net/figure/Graph-of-Csikszentmihalyis-flow-state-when-a-persons-ability-to-execute-a-task_fig1_279226015) to illustrate:
+
+<img src={state_of_flow_diagram} className={styles["screenshot"]} alt="Image Source: https://www.researchgate.net/figure/Graph-of-Csikszentmihalyis-flow-state-when-a-persons-ability-to-execute-a-task_fig1_279226015" />
+
+The key part in this loop for me was practically applying it and then exploring the service limitations myself. Making a mistake and having to work through a tangible problem is how I learn best. Notably, the last few days before the exam I just focused on quizzing myself and abandoned the loop.
+
+# Discussion 
+I'm going to break this section into three parts, what went well, what went badly, and how the overall approach could be improved.
+
+Firstly, what went well. The loop of learning something new, practically applying it, and then challenging myself was extremely effective for me. I tend to learn best through experience / visualising problems and I focused on using those mechanisms. In regards to learning content, I found the [FAQs](https://aws.amazon.com/faqs/) / [whitepapers](https://aws.amazon.com/whitepapers/?whitepapers-main.sort-by=item.additionalFields.sortDate&whitepapers-main.sort-order=desc) to be the most valuable. I heavily focused on these two sources of information and it really did work in the long run. I used the third party training material as a jumping off point due to my complete lack of experience. 
+
+Secondly, what went badly. Time. I didn’t have enough of it - both during the exam and throughout this journey. I often found myself going down rabbit holes, trying to solve problem after problem. AWS is massive and during this journey it felt like there were an infinite number of ways an infinite number of services could integrate with one another. This combined with the looming knowledge that the exam was around the corner took away some of the fun. 
+
+Thirdly, how I think the overall approach could be improved:
+
+- **Time was a massive issue**. I think having more time to practically play around with AWS would have gone a long way. If I was to do this again, I would definitely space it out over 6-8 weeks at least.
+- **Timing self quizzing**. I would often quiz myself to make sure I was prepared, however, I never took time into consideration. I severely underestimated the time aspect during the exam and it really hurt.
+- **Focus more on practical work**. I spent a lot of time doing theoretical work, such as reading FAQs / Whitepapers but the practical work was truly key to my success.
+- **Use courses as a jumping off point**. I focused too much on the third-party course material. FAQs / Whitepapers / Practical work would have been a better use of time.
+
+# Conclusion
+Who would have thought that pushing yourself to go from nothing to something in a short space of time would be exhausting. Pushing myself to achieve this goal in such a short space of time was naive. Throughout this entire experience I have felt very fulfilled, motivated, and most of all - like I was constantly learning. Which is exactly what I wanted. However, in hindsight learning such a huge amount is exhausting and I feel it. I would highly recommend taking your time as it will benefit you in the long run.
+
+Pushing myself to pursue the [Associate Solution Architect](https://aws.amazon.com/certification/certified-solutions-architect-associate/) certification benefitted me in ways I did not expect. I learnt a huge amount about how I effectively learn and how I can use that in the future. Going into this journey I expected to learn a lot about AWS and I really did. I feel like I have a good understanding of the platform and many of the nuances. In addition, I’m motivated to pursue further certifications like the [Security Speciality](https://aws.amazon.com/certification/certified-security-specialty/), however, I will definitely take my time.
+
+As a quick note / warning, I generally thought the Cloud Guru content was really good but sometimes the production quality was irritating. Occasionally the lecturer would missspeak / repeat entire intros, after watching 20+ hours of content I was glad to be done. In addition, the quizzes are hit and miss - I often found myself spending more time debugging the questions than answering the questions.
+
+# Further Reading
+Favourite whitepapers:
+- [Web Application Hosting Best Practices](https://d1.awsstatic.com/whitepapers/aws-web-hosting-best-practices.pdf?did=wp_card&trk=wp_card)
+- [Implementing Micro Services on AWS](https://d1.awsstatic.com/whitepapers/microservices-on-aws.pdf?did=wp_card&trk=wp_card)
+- [AWS Security Best Practices](https://d1.awsstatic.com/whitepapers/Security/AWS_Security_Best_Practices.pdf?did=wp_card&trk=wp_card)
+- [Security Processes](https://d1.awsstatic.com/whitepapers/aws-security-whitepaper.pdf?did=wp_card&trk=wp_card)
+- [Overview of Amazon Web Services](https://d1.awsstatic.com/whitepapers/aws-overview.pdf?did=wp_card&trk=wp_card)
+- [AWS Storage services Overview](https://d1.awsstatic.com/whitepapers/AWS%20Storage%20Services%20Whitepaper-v9.pdf?did=wp_card&trk=wp_card)
+
+Favourite docs:
+- [Really well layed out description of S3 versioning] (https://docs.aws.amazon.com/AmazonS3/latest/dev/ObjectVersioning.html)
+- [Great descrtion of single region multi vpc configurations](https://aws.amazon.com/answers/networking/aws-single-region-multi-vpc-connectivity/)
+- [Great descrtion of multiple region multi vpc configurations](https://aws.amazon.com/answers/networking/aws-multiple-region-multi-vpc-connectivity/)
+- [Great breakdown of EFS](https://docs.aws.amazon.com/efs/latest/ug/how-it-works.html)
+
+The AWS developer docs can be found [here](https://docs.aws.amazon.com/index.html). Also checkout [Well-Architected](https://aws.amazon.com/architecture/well-architected/) / [Well-Architected-Tool](https://aws.amazon.com/well-architected-tool/) and the associated whitepapers, it is incredible.
+
+</div>
