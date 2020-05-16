@@ -2,21 +2,25 @@ import styles from './document.module.css'
 
 <div className={styles["blogBody"]}>
 
-# In Progress
+# Post In Progress...
 
 ---
 
 # Introduction
+Over the past few weeks I’ve been doing a lot of iOS mobile security testing. This required me to quickly get back up to speed with what is happening in the space, get setup for testing, and use some of the current tools. I also used this as an opportunity to play around with the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. I decided to use checkra1n on a test device that is running the most recent version of iOS currently available, iOS 13.4.1. The purpose of this post is to present some of the useful things I picked up during this journey, specifically when it comes to working with Swift / ObjC hybrid apps.
 
 # Background 
-The adoption of the [Swift programming language](https://developer.apple.com/swift/) on the iOS platform has grown rapidly over the past few years, especially amongst larger organisations. More and more developers are opting towards writing new applications in Swift because of the many quality of life improvements it brings. In addition, many existing ObjC based applications are adopting a hybrid approach where they use both ObjC and Swift. This is facilitated by the [interoperability](https://developer.apple.com/documentation/swift/imported_c_and_objective-c_apis/importing_swift_into_objective-c) of the two languages, making it very easy to use both languages in one application. Despite there being well defined interfaces between Swift and ObjC, the two languages have bespoke differences. Details on this can be found [here](https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md).
+Late last year [axi0mX](https://twitter.com/axi0mx) published an unpatchable bootrom exploit on iOS devices called [checkm8](https://github.com/axi0mX/ipwndfu). Checkm8 affects all devices that use the A5 to A11 (iPhone 4S to iPhone X) chips.The significance of this exploit is that it targets a vulnerability in the bootrom, meaning it is not tied to a specific iOS version (more details can be found [here](https://github.com/axi0mX/alloc8)). This vulnerability was then used to build the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. Checkra1n officially supports iOS 12.3 and up.
 
+The adoption of the [Swift programming language](https://developer.apple.com/swift/) on the iOS platform has grown rapidly over the past few years, especially amongst larger organisations. More and more developers are opting towards writing new applications in Swift because of the many quality of life improvements it brings. In addition, many existing ObjC based applications are adopting a hybrid approach where they use both ObjC and Swift. This is facilitated by the [interoperability](https://developer.apple.com/documentation/swift/imported_c_and_objective-c_apis/importing_swift_into_objective-c) of the two languages, making it very easy to use both languages in one application. Despite there being well defined interfaces between Swift and ObjC, the two languages have bespoke differences. Details on this can be found [here](https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md).
 
 # Frida 
 
-### ObjC
+### Getting Started
 
-### Swift
+### ObjC Examples
+
+### Swift Examples
 
 # Debugging
 
