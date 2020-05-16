@@ -18,11 +18,326 @@ The adoption of the [Swift programming language](https://developer.apple.com/swi
 
 ### Getting Started
 
+```
+frida-ls-devices
+Id                                        Type    Name
+----------------------------------------  ------  ------------
+local                                     local   Local System
+<device_id_sequence>                      usb     iPhone
+tcp                                       remote  Local TCP
+```
+
+```bash
+# Launch an application with Frida
+frida -D device_id_sequence -f com.example.Dummy-Application --no-pause
+```
+
+
+
+
 ### ObjC Examples
+
+```javascript
+ObjC.classes
+
+{
+    "AAAbsintheContext": {
+        "handle": "0x1d8e10b60"
+    },
+    "AAAbsintheSigner": {
+        "handle": "0x1d8e0f3a0"
+    },
+    "AAAbsintheSignerContextCache": {
+        "handle": "0x1d8e0f080"
+    },
+    ...
+}
+```
+
+
+```javascript
+ObjC.classes["AAAbsintheContext"]
+
+{
+    "handle": "0x1d8e10b60"
+}
+```
+
+```javascript
+ObjC.classes["AAAbsintheContext"].$ownMethods
+
+[
+    "- init",
+    "- dealloc",
+    "- cao1NI5PNJBn:error:",
+    "- TgBfoO2wtF5L:error:",
+    "- R6XtwiyjL3q2:error:"
+]
+```
+
+```javascript
+var testHook = setInterval(function(){
+    try{
+        Interceptor.attach (ObjC.classes["AAAbsintheContext"]["- init"].implementation, {
+            onEnter: function(args){
+                console.log("AAAbsintheContext - init invoked");
+            }
+        });
+
+        clearInterval(testHook);
+    }
+    catch(err){}
+
+},1);
+```
+
+
+```bash
+frida -D <device_id_sequence> -l app_info.ipa.js -f com.example.Dummy-Application --no-pause
+```
+
+```javascript
+function appInfo() {
+    var output = {};
+    output["Bundle ID"] = ObjC.classes.NSBundle.mainBundle().bundleIdentifier().toString();
+    output["Bundle"] = ObjC.classes.NSBundle.mainBundle().bundlePath().toString();
+    output["Data"] = ObjC.classes.NSProcessInfo.processInfo().environment().objectForKey_("HOME").toString();
+    output["Binary"] = ObjC.classes.NSBundle.mainBundle().executablePath().toString();
+    return output;
+}
+
+if (ObjC.available && "NSBundle" in ObjC.classes) {
+
+    ObjC.schedule(ObjC.mainQueue, function(){
+        console.log("[INFO] Getting the IPA info..");
+
+        var i = appInfo();
+
+        console.log(JSON.stringify(i, null, 2))
+    });
+} else{
+    console.log("No objc here yet, run appInfo() to get the application general info")
+}
+```
 
 ### Swift Examples
 
+Find the application:
+```javascript
+[iPhone::com.example.Dummy-Application]-> Process.enumerateModules()
+[
+    {
+        "base": "0x1009c4000",
+        "name": "Dummy Application",
+        "path": "/private/var/containers/Bundle/Application/<id>/Dummy Application.app/Dummy Application",
+        "size": 65536
+    },
+    ...
+]
+```
+
+Get a reference to your application that you want to hook:
+```javascript
+Process.findModuleByName("Dummy Application")
+
+{
+    "base": "0x100008000",
+    "name": "Dummy Application",
+    "path": "/private/var/containers/Bundle/Application/<id>/Dummy Application.app/Dummy Application",
+    "size": 65536
+}
+```
+
+Enumerate the exports of the module:
+```javascript
+Process.findModuleByName("Dummy Application").enumerateExports()
+
+[
+...
+    {
+        "address": "0x102c80234",
+        "name": "$s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF",
+        "type": "function"
+    },
+...
+```
+
+Demangle function:
+```bash
+xcrun swift-demangle s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF
+$s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF 
+---> 
+Dummy_Application.SensitiveLogic.jailbreakDetection(searchType: Swift.String) -> Swift.Bool
+```
+
+
+
+```javascript
+var f = Module.getExportByName('Dummy Application', 
+'$s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF');
+
+Interceptor.attach(f, {
+    onEnter: function (args) {
+        console.log('function called from:\n' +
+            Thread.backtrace(this.context, Backtracer.ACCURATE)
+            .map(DebugSymbol.fromAddress).join('\n') + '\n');
+
+        console.log('args[0] -> ' + new ObjC.Object(args[0]));
+    },
+    onLeave: function(retval){
+        console.log("retval -> " + r); 
+    }
+});
+```
+
+
+```javascript
+// Create a Javascript binding given the existing object
+console.log('args[0] -> ' + new ObjC.Object(args[0]));
+
+// Obtain the class name of this object
+console.log('Type of args[0] -> ' + new ObjC.Object(args[0]).$className)
+
+// Print the current context in JSON
+console.log("context:" + JSON.stringify(this.context,null,2));
+```
+
 # Debugging
+
+
+```xml
+cat entitlements.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/ PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>platform-application</key>
+    <true/>
+    <key>get-task-allow</key>
+    <true/>
+    <key>task_for_pid-allow</key>
+    <true/>
+    <key>com.apple.backboardd.debugapplications</key>
+    <true/>
+    <key>com.apple.springboard.debugapplications</key>
+    <true/>
+    <key>run-unsigned-code</key>
+    <true/>
+    <key>com.apple.private.librarian.can-get-application-info</key>
+    <true/>
+    <key>com.apple.private.mobileinstall.allowedSPI</key>
+    <array>
+        <string>Lookup</string>
+        <string>CopyInstalledAppsForLaunchServices</string>
+    </array>
+</dict>
+```
+
+```bash
+ldid -Sentitlements.xml debugserver
+```
+
+```bash
+cp debugserver /usr/bin/
+```
+
+```bash
+#iPhone:~ root# debugserver
+debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
+ for arm64.
+Usage:
+  debugserver host:port [program-name program-arg1 program-arg2 ...]
+  debugserver /path/file [program-name program-arg1 program-arg2 ...]
+  debugserver host:port --attach=<pid>
+  debugserver /path/file --attach=<pid>
+  debugserver host:port --attach=<process_name>
+  debugserver /path/file --attach=<process_name>
+```
+
+```
+# List processes
+iPhone:~ root# ps -ax
+  PID TTY           TIME CMD
+    1 ??         1:36.75 /sbin/launchd -s
+   29 ??         0:00.01 checkra1nd
+   ...
+```
+
+```
+# Attaching to a process
+iPhone:~ root# debugserver <device_ip>:1234 -a "Dummy Application"
+debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
+ for arm64.
+Attaching to process Dummy Application...
+Listening to port 1234 for a connection from <device_ip>...
+```
+
+```
+# On your host connect to the device's debug server
+> lldb
+(lldb) process connect connect://<device_ip>:1234
+```
+
+```
+# Once you connect on the device you should see
+iPhone:~ root# debugserver <device_ip>:1234 -a "Dummy Application"
+debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
+ for arm64.
+Attaching to process Dummy Application...
+Listening to port 1234 for a connection from <device_ip>...
+Waiting for debugger instructions for process 0. //lldb connected to device
+```
+
+```
+# Get the base address
+(lldb) imag list -o -f
+[  0] 0x000000000430c000 /private/var/containers/Bundle/Application/21DFEC98-7083-4B88-9578-544F5BAB5F02/Dummy App.app/Dummy App(0x000000010430c000)
+[  1] 0x0000000105ce0000 /Library/Caches/cy-XK18WN.dylib(0x0000000105ce0000)
+[  2] 0x00000001059d8000 /usr/lib/substrate/SubstrateBootstrap.dylib(0x00000001059d8000)
+...
+```
+
+```
+# r2 
+> r2 -
+[0x00000000]> ? 0x0000000100dfd88c + 0x000000000430c000
+int64   4379941004
+uint64  4379941004
+hex     0x10510988c
+octal   040504114214
+unit    4.1G
+segment 10510000:088c
+string  "\x8c\x98\x10\x05\x01"
+fvalue: 4379941004.0
+float:  0.000000f
+double: 0.000000
+binary  0b0000000100000101000100001001100010001100
+trits   0t102022020122001112012
+```
+
+
+```
+# set a breakpoint
+(lldb) b 0x10510988c
+Breakpoint 1: where = Dummy Application`___lldb_unnamed_symbol51146$
+$Dummy Application, address = 0x000000010510988c
+```
+
+```
+Process 1904 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
+    frame #0: 0x000000010510988c Dummy Application`___lldb_unnamed_symbol51146$
+    $Dummy Application
+Dummy Application`___lldb_unnamed_symbol51146$$Dummy Application:
+->  0x10510988c <+0>:  stp    x28, x20, [sp, #-0x20]!
+    0x105109890 <+4>:  stp    x29, x30, [sp, #0x10]
+    0x105109894 <+8>:  add    x29, sp, #0x10            ; =0x10
+    0x105109898 <+12>: sub    sp, sp, #0x280            ; =0x280
+Target 0: (Dummy Application) stopped.
+
+(lldb) po $x0
+68719476736
+```
 
 # Conclusion 
 
