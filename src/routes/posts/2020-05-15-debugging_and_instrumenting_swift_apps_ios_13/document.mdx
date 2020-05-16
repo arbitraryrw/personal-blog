@@ -250,9 +250,10 @@ console.log("context:" + JSON.stringify(this.context,null,2));
 
 # Debugging
 
+There are many excellent posts already on debugging iOS binaries with LLDB, for example [kov4l3nko](https://kov4l3nko.github.io/blog/2016-04-27-debugging-ios-binaries-with-lldb/) and [MSTG](https://github.com/OWASP/owasp-mstg/blob/master/Document/0x06c-Reverse-Engineering-and-Tampering.md#debugging-with-lldb). However, neither of these tutorials worked for me on iOS13. I was able to run the debug server on the device, but after I attached it to the remote server from my host it would fail. I was able to resolve this by using the following entitlements file:
 
 ```xml
-cat entitlements.xml
+$ cat entitlements.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/ PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -279,25 +280,16 @@ cat entitlements.xml
 </dict>
 ```
 
+I modified the entitlements on the `debugserver` by copying the entitlements file above to the device using `scp`, and then executing the following command:
+
 ```bash
 ldid -Sentitlements.xml debugserver
 ```
 
-```bash
-cp debugserver /usr/bin/
-```
+I then moved the `debugserver` binary to `/usr/bin` directory and then found a process to attach to, as seen below:
 
-```
-#iPhone:~ root# debugserver
-debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
- for arm64.
-Usage:
-  debugserver host:port [program-name program-arg1 program-arg2 ...]
-  debugserver /path/file [program-name program-arg1 program-arg2 ...]
-  debugserver host:port --attach=<pid>
-  debugserver /path/file --attach=<pid>
-  debugserver host:port --attach=<process_name>
-  debugserver /path/file --attach=<process_name>
+```bash
+mv debugserver /usr/bin/
 ```
 
 ```
@@ -309,23 +301,26 @@ iPhone:~ root# ps -ax
    ...
 ```
 
+Using the `debugserver` I then attached to the `Dummy Application` process and listened for my host's IP on port `1234`, as seen below:
+
 ```
-# Attaching to a process
-iPhone:~ root# debugserver <device_ip>:1234 -a "Dummy Application"
+iPhone:~ root# debugserver <host_ip>:1234 -a "Dummy Application"
 debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
  for arm64.
 Attaching to process Dummy Application...
-Listening to port 1234 for a connection from <device_ip>...
+Listening to port 1234 for a connection from <host_ip>...
 ```
 
+From my host I was then able to connect to the remote server through lldb.
+
 ```
-# On your host connect to the device's debug server
 > lldb
 (lldb) process connect connect://<device_ip>:1234
 ```
 
+Instead of timing out / disconnecting like before, the debug server acknowledged the connection, as seen below:
+
 ```
-# Once you connect on the device you should see
 iPhone:~ root# debugserver <device_ip>:1234 -a "Dummy Application"
 debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
  for arm64.
@@ -334,10 +329,11 @@ Listening to port 1234 for a connection from <device_ip>...
 Waiting for debugger instructions for process 0. //lldb connected to device
 ```
 
+I was then able to get the processes base address, use r2 to calculate the target offset with ASLR, set a breakpoint, and debug as normal.
+
 ```
-# Get the base address
 (lldb) imag list -o -f
-[  0] 0x000000000430c000 /private/var/containers/Bundle/Application/21DFEC98-7083-4B88-9578-544F5BAB5F02/Dummy App.app/Dummy App(0x000000010430c000)
+[  0] 0x000000000430c000 /private/var/containers/Bundle/Application/<id>/Dummy App.app/Dummy App(0x000000010430c000)
 [  1] 0x0000000105ce0000 /Library/Caches/cy-XK18WN.dylib(0x0000000105ce0000)
 [  2] 0x00000001059d8000 /usr/lib/substrate/SubstrateBootstrap.dylib(0x00000001059d8000)
 ...
@@ -363,7 +359,6 @@ trits   0t102022020122001112012
 
 
 ```
-# set a breakpoint
 (lldb) b 0x10510988c
 Breakpoint 1: where = Dummy Application`___lldb_unnamed_symbol51146$
 $Dummy Application, address = 0x000000010510988c
