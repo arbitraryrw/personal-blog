@@ -2,10 +2,6 @@ import styles from './document.module.css'
 
 <div className={styles["blogBody"]}>
 
-# Post In Progress...
-
----
-
 # Introduction
 Over the past few weeks I’ve been doing a lot of iOS mobile security testing. This required me to quickly get back up to speed with what is happening in the space, get setup for testing, and use some of the current tools. I also used this as an opportunity to play around with the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. I decided to use checkra1n on a test device that is running the most recent version of iOS currently available, iOS 13.4.1. The purpose of this post is to present some of the useful things I picked up during this journey, specifically when it comes to working with Swift / ObjC hybrid apps.
 
@@ -66,7 +62,7 @@ ObjC.classes
 }
 ```
 
-This API can also be used to interface with a specific class as seen below:
+This API can also be used to interface with a specific class.
 
 ```javascript
 ObjC.classes["AAAbsintheContext"]
@@ -95,7 +91,7 @@ ObjC.classes["AAAbsintheContext"].$ownMethods
 ]
 ```
 
-This information can then be used with the interceptor API to intercept calls to the target function. As seen below, the `- init` function in the `AAAbsintheContext` class is hooked to log whenever the function is invoked. This could be used to log / manipulate the arguments passed to the function or change the return value. In this example the `onEnter` block was used, but there is also an `onLeave` block. More documentation on this API can be found [here](https://frida.re/docs/javascript-api/#interceptor).
+This information can then be used with the interceptor API to intercept calls to the target function. In the snippet below, the `- init` function in the `AAAbsintheContext` class is hooked to log whenever the function is invoked. This could be used to log / manipulate the arguments passed to the function or change the return value. In this example the `onEnter` block was used, but there is also an `onLeave` block. More documentation on this API can be found [here](https://frida.re/docs/javascript-api/#interceptor).
 
 ```javascript
 var testHook = setInterval(function(){
@@ -113,7 +109,7 @@ var testHook = setInterval(function(){
 },1);
 ```
 
-Notably, Frida scripts can also be placed into a file and then loaded into frida by using the `-l` flag as seen below:
+Notably, Frida scripts can also be placed into a file and then loaded into frida by using the `-l` flag:
 
 ```bash
 frida -D <device_id_sequence> -l app_info.ipa.js -f com.example.Dummy-Application --no-pause
@@ -242,7 +238,7 @@ console.log('args[0] -> ' + Memory.readCString(args[0]));
 console.log('args[0] -> ' + new ObjC.Object(args[0]));
 
 // Obtain the class name of this object, very useful for enumerating objects
-console.log('Type of args[0] -> ' + new ObjC.Object(args[0]).$className)
+console.log('Type of args[0] -> ' + new ObjC.Object(args[0]).$className);
 
 // Print the current context in JSON
 console.log("context:" + JSON.stringify(this.context,null,2));
@@ -383,7 +379,7 @@ Target 0: (Dummy Application) stopped.
 # Conclusion 
 Testing on the most recent version of iOS was both good and bad. I was subjected to the latest and greatest features that the platform had to offer. This meant I spent a lot of time learning about new features / restrictions on the platform, for example the new [requirements for trusted certs](https://support.apple.com/en-gb/HT210176). I felt like I learnt a lot and I was able to identify issues that were relevant. However, I also found myself spending a lot of time debugging issues, such as [proxying traffic on burp ](https://forum.portswigger.net/thread/ios-13-burp-ssl-certs-not-able-to-be-fully-trusted-2b208cf6) / the debugserver issue presented in this post. Overall I would say the experience was very positive from a self improvement perspective, but from a time management perspective it was poor.
 
-From a tooling perspective, this experience highlighted how great the [checkra1n](https://checkra.in/) jailbreak is. Despite it only being in beta, it has been extremely reliable and easy to work with. It was noticeably nicer to work with than alternatives I have used in the past, like Unc0ver and Electra. In addition, this experience made it clear that Frida could use some community support on handling Swift. I found several issues from users not knowing how to handle swift objects, such as [this](https://github.com/frida/frida/issues/1089). Since the Swift ABI is documented and available [here](https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARM64FunctionCallingConventions.html), I’m going to spend some time looking into this and contributing if I’m successful.
+With regards to the tooling side of things, this experience highlighted how great the [checkra1n](https://checkra.in/) jailbreak is. Despite it only being in beta, it has been extremely reliable and easy to work with. It was noticeably nicer to work with than alternatives I have used in the past, like Unc0ver and Electra. In addition, this experience made it clear that Frida could use some community support on handling Swift. I found several issues from users not knowing how to handle Swift objects, such as [this](https://github.com/frida/frida/issues/1089). Since the Swift ABI is documented and available [here](https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARM64FunctionCallingConventions.html), I’m going to spend some time looking into it and contributing if I’m successful.
 
 # Useful Resources
 - [Frida Docs](https://frida.re/docs/home/)
