@@ -381,6 +381,9 @@ Target 0: (Dummy Application) stopped.
 ```
 
 # Conclusion 
+Testing on the most recent version of iOS was both good and bad. I was subjected to the latest and greatest features that the platform had to offer. This meant I spent a lot of time learning about new features / restrictions on the platform, for example the new [requirements for trusted certs](https://support.apple.com/en-gb/HT210176). I felt like I learnt a lot and I was able to identify issues that were relevant. However, I also found myself spending a lot of time debugging issues, such as [proxying traffic on burp ](https://forum.portswigger.net/thread/ios-13-burp-ssl-certs-not-able-to-be-fully-trusted-2b208cf6) / the debugserver issue presented in this post. Overall I would say the experience was very positive from a self improvement perspective, but from a time management perspective it was poor.
+
+From a tooling perspective, this experience highlighted how great the [checkra1n](https://checkra.in/) jailbreak is. Despite it only being in beta, it has been extremely reliable and easy to work with. It was noticeably nicer to work with than alternatives I have used in the past, like Unc0ver and Electra. In addition, this experience made it clear that Frida could use some community support on handling Swift. I found several issues from users not knowing how to handle swift objects, such as [this](https://github.com/frida/frida/issues/1089). Since the Swift ABI is documented and available [here](https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARM64FunctionCallingConventions.html), I’m going to spend some time looking into this and contributing if I’m successful.
 
 # Useful Resources
 - [Frida Docs](https://frida.re/docs/home/)
