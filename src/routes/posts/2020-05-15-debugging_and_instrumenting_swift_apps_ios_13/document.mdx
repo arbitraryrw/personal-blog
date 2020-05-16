@@ -45,9 +45,9 @@ The below command can be used to tell Frida to launch the application `com.examp
 $ frida -D device_id_sequence -f com.example.Dummy-Application --no-pause
 ```
 
-
-
 ### ObjC Examples
+
+Frida exposes a rich set of APIs for interfacing with the ObjC runtime, the documentation for this can be found [here](https://frida.re/docs/javascript-api/#objc). For example, the `ObjC.classes` API can be used to interface with the ObjC classes inside of the process, as seen below:
 
 ```javascript
 ObjC.classes
@@ -66,6 +66,7 @@ ObjC.classes
 }
 ```
 
+This API can also be used to interface with a specific class as seen below:
 
 ```javascript
 ObjC.classes["AAAbsintheContext"]
@@ -74,6 +75,13 @@ ObjC.classes["AAAbsintheContext"]
     "handle": "0x1d8e10b60"
 }
 ```
+
+The `ObJC.classes` API returns an object that has various properties. A small subset of these include:
+- `$className`: String contains the class name of the object
+- `$ownMethods`: An array of method names exposed by this object’s class, not including the parent class
+- `$ivars`: Instance variables mapped back to object mappings that can be written to and read
+
+These properties can be used to further understand the object at runtime. For example, the `$ownMethods` property shows the methods of the class as seen below:
 
 ```javascript
 ObjC.classes["AAAbsintheContext"].$ownMethods
@@ -86,6 +94,8 @@ ObjC.classes["AAAbsintheContext"].$ownMethods
     "- R6XtwiyjL3q2:error:"
 ]
 ```
+
+This information can then be used with the interceptor API to intercept calls to the target function. As seen below, the `- init` function in the `AAAbsintheContext` class is hooked to log whenever the function is invoked. This could be used to log / manipulate the arguments passed to the function or change the return value. In this example the `onEnter` block was used, but there is also an `onLeave` block. More documentation on this API can be found [here](https://frida.re/docs/javascript-api/#interceptor).
 
 ```javascript
 var testHook = setInterval(function(){
@@ -103,10 +113,13 @@ var testHook = setInterval(function(){
 },1);
 ```
 
+Notably, Frida scripts can also be placed into a file and then loaded into frida by using the `-l` flag as seen below:
 
 ```bash
 frida -D <device_id_sequence> -l app_info.ipa.js -f com.example.Dummy-Application --no-pause
 ```
+
+Another use case for the ObjC API is to be able to invoke ObjC classes on demand. An example of this can be seen below to extract information about the application, such as the data / bundle directories on disk.
 
 ```javascript
 function appInfo() {
@@ -123,9 +136,9 @@ if (ObjC.available && "NSBundle" in ObjC.classes) {
     ObjC.schedule(ObjC.mainQueue, function(){
         console.log("[INFO] Getting the IPA info..");
 
-        var i = appInfo();
+        var aI = appInfo();
 
-        console.log(JSON.stringify(i, null, 2))
+        console.log(JSON.stringify(aI, null, 2))
     });
 } else{
     console.log("No objc here yet, run appInfo() to get the application general info")
