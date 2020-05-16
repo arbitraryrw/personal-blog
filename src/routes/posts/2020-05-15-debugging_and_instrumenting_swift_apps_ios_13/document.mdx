@@ -147,9 +147,13 @@ if (ObjC.available && "NSBundle" in ObjC.classes) {
 
 ### Swift Examples
 
-Find the application:
+Unfortunately interfacing with Swift in Frida is not nearly as convenient as with ObjC. There are a few projects such as [swift-frida](https://github.com/maltek/swift-frida) that endeavour to make this easier, but from my experience they are not very stable. The approach I adopted was interfacing with the process directly, however, this limits what you’re able to do. Regardless, the approach is presented below.
+
+The first step is to identify the modules in the current process, this can be done by using the following command:
+
 ```javascript
-[iPhone::com.example.Dummy-Application]-> Process.enumerateModules()
+Process.enumerateModules()
+
 [
     {
         "base": "0x1009c4000",
@@ -161,7 +165,8 @@ Find the application:
 ]
 ```
 
-Get a reference to your application that you want to hook:
+Once a module has been identified, that module can then be referenced individually through the `findModuleByName` API as seen below:
+
 ```javascript
 Process.findModuleByName("Dummy Application")
 
@@ -173,7 +178,11 @@ Process.findModuleByName("Dummy Application")
 }
 ```
 
-Enumerate the exports of the module:
+All of the exports for a given module can then be enumerated through the `enumerateExports()` function. This returns an array of objects that contain the following properties:
+- `type`: A string specifying if the export is a function or variable.
+- `name`: A string containing export name
+- `address`: An absolute address given as a native pointer
+
 ```javascript
 Process.findModuleByName("Dummy Application").enumerateExports()
 
@@ -185,9 +194,11 @@ Process.findModuleByName("Dummy Application").enumerateExports()
         "type": "function"
     },
 ...
+]
 ```
 
-Demangle function:
+The export shown above is an example of a Swift function. A feature of the Swift compiler is that it mangles names as part of the compilation process. The reason the compiler does this is to encode references to types for runtime instantiation and reflection. It is a common technique used to solve the problem of overloaded identifiers. Swift mangled names keep metadata in the mangled symbols. This metadata includes the function's name, attributes, module name, parameter types, return type, and more. Detailed documentation on this can be found [here](https://github.com/apple/swift/blob/master/docs/ABI/Mangling.rst). Xcode exposes a command line utility to demangle these names, as seen below:
+
 ```bash
 xcrun swift-demangle s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF
 $s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF 
@@ -195,7 +206,7 @@ $s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF
 Dummy_Application.SensitiveLogic.jailbreakDetection(searchType: Swift.String) -> Swift.Bool
 ```
 
-
+Much like the ObjC example presented in the previous section, a Swift function can be hooked using the interceptor API. In the example below, the `jailbreakDetection` function is hooked using `Interceptor.attach`. When the function is invoked, Frida will print a backtrace of the function call, and print the first argument of the function as an ObjC object. Notably, in this example the first argument `arg[0]` could be cast as an ObjC object, this is a useful trick but it does not always work. Once the function has run, the hook will then print the return value in the `onLeave` section.
 
 ```javascript
 var f = Module.getExportByName('Dummy Application', 
@@ -215,12 +226,22 @@ Interceptor.attach(f, {
 });
 ```
 
+For completeness here are some useful commands used to debug objects:
 
 ```javascript
+// Read the Utf8 string at arg0
+console.log('args[0] -> ' + Memory.readUtf8String(args[0]));
+
+// Read the Utf16 string at arg0
+console.log('args[0] -> ' + Memory.readUtf16String(args[0]));
+
+// Read a string at arg0 when the encoding is unknown
+console.log('args[0] -> ' + Memory.readCString(args[0]));
+
 // Create a Javascript binding given the existing object
 console.log('args[0] -> ' + new ObjC.Object(args[0]));
 
-// Obtain the class name of this object
+// Obtain the class name of this object, very useful for enumerating objects
 console.log('Type of args[0] -> ' + new ObjC.Object(args[0]).$className)
 
 // Print the current context in JSON
