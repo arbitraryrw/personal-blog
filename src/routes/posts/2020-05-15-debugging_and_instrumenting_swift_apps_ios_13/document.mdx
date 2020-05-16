@@ -10,16 +10,19 @@ import styles from './document.module.css'
 Over the past few weeks I’ve been doing a lot of iOS mobile security testing. This required me to quickly get back up to speed with what is happening in the space, get setup for testing, and use some of the current tools. I also used this as an opportunity to play around with the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. I decided to use checkra1n on a test device that is running the most recent version of iOS currently available, iOS 13.4.1. The purpose of this post is to present some of the useful things I picked up during this journey, specifically when it comes to working with Swift / ObjC hybrid apps.
 
 # Background 
-Late last year [axi0mX](https://twitter.com/axi0mx) published an unpatchable bootrom exploit on iOS devices called [checkm8](https://github.com/axi0mX/ipwndfu). Checkm8 affects all devices that use the A5 to A11 (iPhone 4S to iPhone X) chips.The significance of this exploit is that it targets a vulnerability in the bootrom, meaning it is not tied to a specific iOS version (more details can be found [here](https://github.com/axi0mX/alloc8)). This vulnerability was then used to build the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. Checkra1n officially supports iOS 12.3 and up.
+Late last year [axi0mX](https://twitter.com/axi0mx) published an unpatchable bootrom exploit on iOS devices called [checkm8](https://github.com/axi0mX/ipwndfu). Checkm8 affects all devices that use the A5 to A11 (iPhone 4S to iPhone X) chips. The significance of this exploit is that it targets a vulnerability in the bootrom, meaning it is not tied to a specific iOS version (more details can be found [here](https://github.com/axi0mX/alloc8)). This vulnerability was then used to build the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. Checkra1n officially supports iOS 12.3 and up.
 
 The adoption of the [Swift programming language](https://developer.apple.com/swift/) on the iOS platform has grown rapidly over the past few years, especially amongst larger organisations. More and more developers are opting towards writing new applications in Swift because of the many quality of life improvements it brings. In addition, many existing ObjC based applications are adopting a hybrid approach where they use both ObjC and Swift. This is facilitated by the [interoperability](https://developer.apple.com/documentation/swift/imported_c_and_objective-c_apis/importing_swift_into_objective-c) of the two languages, making it very easy to use both languages in one application. Despite there being well defined interfaces between Swift and ObjC, the two languages have bespoke differences. Details on this can be found [here](https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md).
 
 # Frida 
+Frida is a dynamic code instrumentation toolkit that works on a wide variety of platforms, including Windows, macOS, GNU/Linux, iOS, Android, and QNX. More information on Frida can be found [here](https://frida.re/docs/home/) and the source code is available [here](https://github.com/frida/frida). For setup instructions, detailed documentation can be found [here](https://frida.re/docs/installation/), and for iOS [here](https://frida.re/docs/ios/#with-jailbreak). The Frida toolkit contains several tools, including: frida CLI, frida-ps, frida-trace, frida-discover, frida-ls-devices, and frida-kill. This post will primarily focus on Frida CLI, the REPL (read–eval–print loop) interface, frida-ps, and frida-ls-devices.
 
 ### Getting Started
 
+Once Frida is installed both on the host and on the device, you should be able to see the current devices attached by running the following command:
+
 ```
-frida-ls-devices
+$ frida-ls-devices
 Id                                        Type    Name
 ----------------------------------------  ------  ------------
 local                                     local   Local System
@@ -27,11 +30,20 @@ local                                     local   Local System
 tcp                                       remote  Local TCP
 ```
 
-```bash
-# Launch an application with Frida
-frida -D device_id_sequence -f com.example.Dummy-Application --no-pause
+Note that the connect type is over USB, so the device is plugged into my machine. The current running processes on the remote device can then be listed by executing the following command:
+
+```
+$ frida-ps -D <device_id_sequence>
 ```
 
+The `device_id_sequence` and the process pid / name can then be used to establish a Frida REPL session. For the purposes of this post a dummy application was used, replace `com.example.Dummy-Application` with your application.
+
+The below command can be used to tell Frida to launch the application `com.example.Dummy-Application` on the remote device `device_id_sequence`. The `--no-pause` flag simply instructs Frida to not pause the application, normally you would have to enter `%resume` once the session starts.
+
+```bash
+# Launch an application with Frida
+$ frida -D device_id_sequence -f com.example.Dummy-Application --no-pause
+```
 
 
 
@@ -241,7 +253,7 @@ ldid -Sentitlements.xml debugserver
 cp debugserver /usr/bin/
 ```
 
-```bash
+```
 #iPhone:~ root# debugserver
 debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
  for arm64.
