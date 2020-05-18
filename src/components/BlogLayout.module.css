@@ -26,7 +26,7 @@
 .bannerContainer{
   font-family: 'Menlo-Regular', monospace;
   /* font-size: calc(2vmin); */
-  min-height: 100vh;
+  min-height: 90vh;
   color: white;
   background-color: #2A363B;
   display: flex;

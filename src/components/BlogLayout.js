@@ -21,6 +21,7 @@ function BlogLayout({ blogRoot, isViewingIndex }) {
     isViewingIndex && (
       <div className={styles.bannerContainer}>
           <Banner/>
+
       </div>
     )}
 
