@@ -12,6 +12,9 @@ import styles from './BlogLayout.module.css'
 import Banner from './Banner'
 import PageScroller from './PageScroller'
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {faHome} from '@fortawesome/free-solid-svg-icons';
+
 function BlogLayout({ blogRoot, isViewingIndex }) {
   let loadingRoute = useLoadingRoute()
   let myRef = React.createRef();
@@ -34,7 +37,12 @@ function BlogLayout({ blogRoot, isViewingIndex }) {
       !isViewingIndex && (
         <header>
           <h3 className={styles.title}>
-            <Link href={blogRoot}>{siteMetadata.title}</Link>
+            <Link href={blogRoot}>
+          
+              <FontAwesomeIcon className={styles.blob} icon={faHome} size="2x" width="1.8rem"/>
+              {siteMetadata.title}
+
+            </Link>
           </h3>
         </header>
       )}
