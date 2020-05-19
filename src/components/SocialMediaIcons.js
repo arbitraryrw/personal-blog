@@ -28,7 +28,6 @@ config.autoAddCss = false
     return (
      <div className="social-icons">
 
-
         <ul style = {socialMediaStyle} >
           <li style = {listItemStyle}>
             <a style = {{color:"grey"}} href="https://twitter.com/arbitraryrw" target="_blank" rel="noopener noreferrer">

@@ -10,9 +10,11 @@ import NotFoundPage from './NotFoundPage'
 import LoadingIndicator from './LoadingIndicator'
 import styles from './BlogLayout.module.css'
 import Banner from './Banner'
+import PageScroller from './PageScroller'
 
 function BlogLayout({ blogRoot, isViewingIndex }) {
   let loadingRoute = useLoadingRoute()
+  let myRef = React.createRef();
 
   return (
     <div>
@@ -21,11 +23,11 @@ function BlogLayout({ blogRoot, isViewingIndex }) {
     isViewingIndex && (
       <div className={styles.bannerContainer}>
           <Banner/>
-
+          <PageScroller target={myRef}/>
       </div>
     )}
 
-    <div className={styles.container}>
+    <div ref={myRef} className={styles.container}>
       <LoadingIndicator active={!!loadingRoute} />
 
       {// Don't show the header on index pages, as it has a special header.
