@@ -64,7 +64,7 @@ function BlogPostLayout({ blogRoot }) {
           </section>
 
           {/* Page Comments */}
-          <HyvorTalk.Embed websiteId={707} id={"reee"} />
+          <HyvorTalk.Embed websiteId={707} id={url.pathname} />
 
         </footer>
         
