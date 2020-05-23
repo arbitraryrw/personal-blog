@@ -5,6 +5,7 @@ import siteMetadata from '../siteMetadata'
 import ArticleMeta from './ArticleMeta'
 import Bio from './Bio'
 import styles from './BlogPostLayout.module.css'
+import HyvorTalk from 'hyvor-talk-react'
 
 function BlogPostLayout({ blogRoot }) {
   let { title, data, url } = useCurrentRoute()
@@ -37,13 +38,16 @@ function BlogPostLayout({ blogRoot }) {
         }}>
           <MDXComponent />
         </MDXProvider>
+
         <footer className={styles.footer}>
           <h3 className={styles.title}>
             <Link href={blogRoot}>
               {siteMetadata.footerTitle}
             </Link>
           </h3>
+
           <Bio className={styles.bio} />
+
           <section className={styles.links}>
             {
               data.previousDetails &&
@@ -58,7 +62,12 @@ function BlogPostLayout({ blogRoot }) {
               </Link>
             }
           </section>
+
+          {/* Page Comments */}
+          <HyvorTalk.Embed websiteId={707} id={"reee"} />
+
         </footer>
+        
       </article>
     </>
   )

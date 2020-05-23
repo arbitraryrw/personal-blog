@@ -41,7 +41,7 @@ let posts = postDetails.map(({ slug, pathname, date }, i) => ({
     let { default: post } = await importPost(pathname)
     let { title, getContent, ...meta } = post
     let previousSlug, previousPost, nextSlug, nextPost
-
+    
     if (i !== 0) {
       let previousPostDetails = postDetails[i - 1]
       previousPost = (await importPost(previousPostDetails.pathname)).default
