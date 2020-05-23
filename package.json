@@ -10,6 +10,7 @@
     "@fortawesome/react-fontawesome": "^0.1.9",
     "blueimp-md5": "^2.16.0",
     "feed": "^2.0.2",
+    "hyvor-talk-react": "^1.0.1",
     "import-all.macro": "^2.0.3",
     "lodash": "^4.17.11",
     "navi": "^0.13.3",
