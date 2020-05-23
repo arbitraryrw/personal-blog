@@ -7,6 +7,7 @@ class Banner extends React.Component {
   constructor(props) {
   super(props);
 
+  var mounted = true;
   this.state = {
     firstCycle:true,
     text: '',
@@ -87,6 +88,7 @@ class Banner extends React.Component {
   }
 
   componentWillUnmount(){
+    // ToDo: rework this to use setState
     this.state.isCompMounted = false;
   }
 
