@@ -28,3 +28,6 @@ To build locally / deploy to prod run:
 npm run-script build
 npm run deploy:prod
 ```
+
+# Useful Links
+- [Hyvor Comments](https://talk.hyvor.com/console)
