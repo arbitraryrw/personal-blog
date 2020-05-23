@@ -13,6 +13,7 @@ class Banner extends React.Component {
     isDeleting: false,
     loopNum: 0,
     typingSpeed: 150,
+    isCompMounted: true,
     bannerText: [
       "Hey, I'm Nik.",
       "I build things.",
@@ -23,6 +24,12 @@ class Banner extends React.Component {
 }
 
   handleType = () => {
+
+    // If the component isn't mounted then do nothing
+    if (!this.state.isCompMounted){
+      return
+    }
+
     // console.log(this.props.banner)
     const dataText  = this.state.bannerText;
     const { firstCycle, isDeleting, loopNum, text, typingSpeed } = this.state;
@@ -66,12 +73,21 @@ class Banner extends React.Component {
       }
     }
 
-    setTimeout(this.handleType, typingSpeed);
+    var updateTextInterval = setTimeout(this.handleType, typingSpeed);
+
+    if (!this.state.isCompMounted){
+      clearInterval(updateTextInterval);
+    }
+
   };
 
 
   componentDidMount() {
     this.handleType();
+  }
+
+  componentWillUnmount(){
+    this.state.isCompMounted = false;
   }
 
   render(){
