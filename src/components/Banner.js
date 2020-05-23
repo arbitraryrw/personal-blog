@@ -5,32 +5,27 @@ import styles from './Banner.module.css'
 class Banner extends React.Component {
 
   constructor(props) {
-  super(props);
+    super(props);
 
-  var mounted = true;
-  this.state = {
-    firstCycle:true,
-    text: '',
-    isDeleting: false,
-    loopNum: 0,
-    typingSpeed: 150,
-    isCompMounted: true,
-    bannerText: [
-      "Hey, I'm Nik.",
-      "I build things.",
-      "I break things.",
-      "I solve problems."
-    ]
+    // Update text interval store
+    this.textUpdateInterval = null;
+
+    this.state = {
+      firstCycle:true,
+      text: '',
+      isDeleting: false,
+      loopNum: 0,
+      typingSpeed: 150,
+      bannerText: [
+        "Hey, I'm Nik.",
+        "I build things.",
+        "I break things.",
+        "I solve problems."
+      ]
+    }
   }
-}
 
   handleType = () => {
-
-    // If the component isn't mounted then do nothing
-    if (!this.state.isCompMounted){
-      return
-    }
-
     // console.log(this.props.banner)
     const dataText  = this.state.bannerText;
     const { firstCycle, isDeleting, loopNum, text, typingSpeed } = this.state;
@@ -74,22 +69,15 @@ class Banner extends React.Component {
       }
     }
 
-    var updateTextInterval = setTimeout(this.handleType, typingSpeed);
-
-    if (!this.state.isCompMounted){
-      clearInterval(updateTextInterval);
-    }
-
+    this.textUpdateInterval = setTimeout(this.handleType, typingSpeed);
   };
-
 
   componentDidMount() {
     this.handleType();
   }
 
   componentWillUnmount(){
-    // ToDo: rework this to use setState
-    this.state.isCompMounted = false;
+    clearInterval(this.textUpdateInterval);
   }
 
   render(){
