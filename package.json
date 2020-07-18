@@ -12,7 +12,7 @@
     "feed": "^2.0.2",
     "hyvor-talk-react": "^1.0.1",
     "import-all.macro": "^2.0.3",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.19",
     "navi": "^0.13.3",
     "navi-scripts": "^0.13.3",
     "netlify-cli": "^2.53.0",
