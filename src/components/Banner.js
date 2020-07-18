@@ -92,7 +92,7 @@ class Banner extends React.Component {
     </p>
 
     <p style= {{ marginTop:"0", fontSize: "2vmin"}}>
-    Security Specialist / Developer / Reverse Engineer
+    Security Engineer / Developer / Reverse Engineer
     </p>
 
     <SocialMediaIcons/>
