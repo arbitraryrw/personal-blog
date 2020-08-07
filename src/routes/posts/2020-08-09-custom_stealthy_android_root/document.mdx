@@ -1,12 +1,44 @@
 import styles from './document.module.css'
 
+import twrpFuncSelectScreen from './imgs/twrp_1.png'
+import twrpInstallZipSelectFile from './imgs/twrp_2.png'
+import twrpInstallZipConfirm from './imgs/twrp_3.png'
+import twrpInstallLogs from './imgs/twrp_4.png'
+import twrpRebootScreen from './imgs/twrp_5.png'
+import superSuAppPresent from './imgs/super_su_app_present.jpg'
+import superSuNotDetected from './imgs/super_su_app_does_not_detect_root.jpg'
+import safetynetPassImage from './imgs/safetynet_pass.jpg'
+
 <div className={styles["blogBody"]}>
 
+# Disclaimer
+Rooting your Android device is your decision, I am by no means responsible for any damage. Proceed with caution, the process of Rooting a device can be risky, including but not limited to:
+
+- Bricking the device, rendering it unusuable
+- Voiding the device warranty
+- Introducing additional security risks
+
+# Definitions
+__Rooted device__ - For the purpose of this blog post, this is defined as: _modifying the operating system so that you can run commands as the root user_. There are broader definitions that include anything that is not stock Android, such as custom ROMs, however, this is outside the scope of this post.
+
+__Root Detection__ - Logic used to detect the presence of a rooted device. For example, the presence and or absence of files on the filesystem, binary behavioural differences, etc.
+
 # Introduction
+Dynamic security testing / research on the Android platform is almost always accomplished on a rooted device. This is because having root privilege access allows you to bypass many restrictions that are built into the platform. Making it easy to extract data from the device or tamper with applications. However, many mobile applications take it upon themselves to block access from rooted devices. This is common practice because the user has introduced a mechanism to bypass restrictions that are rightfully built into the platform. These restrictions are there to protect the user, and their data. Naturally, service providers want to reduce the potential attack surface as much as possible - blocking rooted devices is the easiest solution for that.
+
+On the other hand, working on a non-rooted device is not a straightforward process either. Although there are methods to use bread and butter tools on non-rooted devices, such as [Frida](https://frida.re/), generally it is more cumbersome. From my experience, it often adds additional complexity and can introduce more problems than it solves. Especially when working with multiple applications. A great example of this is: to be able to use [Frida Gadget](https://frida.re/docs/gadget/) you need to repackage the application, however, by repacking the application you now need to bypass repackaging / signature detections.
+
+The way that I usually tackle this dilemma is by using a rooted device and bypassing any root detection checks. This is not ideal as this involves individually bypassing each root detection check, in each and every application. Fortunately, there are many tools that offer effective root bypasses that work on most applications, such as [Objection](https://github.com/sensepost/objection). The real problem lies with the applications that have sophisticated / custom root detection checks. Do you accept defeat, manually reverse the application, and write a custom hook? Or do you tackle the problem instead of the symptom? I’ve opted for the latter and will present the solution here.
 
 # Background 
+There are many different methodologies / approaches when it comes to root detection. For the purposes of this post, it is important to understand that many root detection methodologies are primarily built on detecting the presence of files on disk. For example, detecting the presence of the `su` binary on disk, or a root management application such as [SuperSu](https://supersuroot.org/) or [Magisk](https://magiskmanager.com/) is an obvious red flag. There is no ambiguity, if a device has these files on disk there is an almost 100% chance the device is rooted.
+
+Notably, there are additional methods for detecting if the device is rooted that are not so straight forward. Such as checking file system permissions, system properties, or even how the OS was signed (test / prod keys). Many of these checks are not individually enough to say the device is definitely rooted. For example, it is not uncommon for custom ROMs to be signed using test keys, or ROMs to ship with different utilities. Often these checks are only used to support the file system checks to provide further assurance. 
+
+A more in depth breakdown of the individual techniques can be found in the [MSTG - Testing Root Detection](https://mobile-security.gitbook.io/mobile-security-testing-guide/android-testing-guide/0x05j-testing-resiliency-against-reverse-engineering#testing-root-detection-mstg-resilience-1) gitbook. This is a great resource and I would highly recommend it.
 
 # Walkthrough
+
 ### Setup
 - [android platform tools (adb / fastboot)](https://developer.android.com/studio/releases/platform-tools)
 - unlock bootloader
@@ -113,14 +145,12 @@ fastboot devices
 
 Download TWRP for your device, unfortunately all of the official builds from TWRP did not work for me. I resorted to using an official [TWRP version](https://forum.xda-developers.com/oneplus-5t/development/recovery-twrp-3-2-1-0-oreo-8-0-8-1-t3729673) for my OnePlus 5T (codename Dumpling).
 
-
 ```
 fastboot boot twrp-3.2.3-0-20180822-codeworkx-dumpling.img
 Sending 'boot.img' (26944 KB)                      OKAY [  0.599s]
 Booting                                            OKAY [  0.013s]
 Finished. Total time: 0.636s
 ```
-
 
 Push patched SuperSu to device:
 
@@ -129,6 +159,16 @@ adb push patched-SR5-SuperSU-v2.82-SR5-20171001224502.zip /sdcard/
 patched-SR5-SuperSU-v2.82-SR5-20171001224502.zip: 1 file pushed, 0 skipped. 28.8 MB/s (14913677 bytes in 0.494s)
 ```
 
+
+<img src={twrpFuncSelectScreen} className={styles["screenshot"]} alt="TWRP function selection screen" />
+
+<img src={twrpInstallZipSelectFile} className={styles["screenshot"]} alt="TWRP install zip screen, select file" />
+
+<img src={twrpInstallZipConfirm} className={styles["screenshot"]} alt="TWRP install confirmation screen" />
+
+<img src={twrpRebootScreen} className={styles["screenshot"]} alt="TWRP reboot screen" />
+
+<img src={superSuAppPresent} className={styles["screenshot"]} alt="SuperSu management app present on device reboot" />
 
 
 # Results
@@ -159,17 +199,28 @@ OnePlus5T:/ # cat /data/data/com.oneplus.security/shared_prefs/oneplus_security_
 OnePlus5T:/ #
 ```
 
-
-
 # Clean-up
+- Remove root management apps 
 - Safetynet bypass
 - Kernel patch
+
+I would highly recommend removing the management SuperSu management application as this acts as a common root detection signature.
+
+<img src={superSuNotDetected} className={styles["screenshot"]} alt="SuperSu management app does not detect root" />
+
+
+__KERNEL PATCH CONTENT__
+
+<img src={safetynetPassImage} className={styles["screenshot"]} alt="SafetyNet basic and CTS pass" />
+
 
 # Conclusion 
 
 # Useful References
+- [MSTG Android Testing Setup](https://mobile-security.gitbook.io/mobile-security-testing-guide/android-testing-guide/0x05b-basic-security_testing)
 - [Magisk](https://magiskmanager.com/)
 - [Magisk Hide](https://magiskmanager.com/#What_is_Magisk_Hide)
+- [Magisk Source - Github](https://github.com/topjohnwu/Magisk)
 - [SuperSu](https://supersuroot.org/)
 - [MSTG Root Detection](https://github.com/OWASP/owasp-mstg/blob/master/Document/0x05j-Testing-Resiliency-Against-Reverse-Engineering.md#file-existence-checks)
 - [TWRP](https://twrp.me/)
