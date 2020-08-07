@@ -1,0 +1,402 @@
+import styles from './document.module.css'
+
+<div className={styles["blogBody"]}>
+
+# Introduction
+Over the past few weeks I’ve been doing a lot of iOS mobile security testing. This required me to quickly get back up to speed with what is happening in the space, get setup for testing, and use some of the current tools. I also used this as an opportunity to play around with the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. I decided to use checkra1n on a test device that is running the most recent version of iOS currently available, iOS 13.4.1. The purpose of this post is to present some of the useful things I picked up during this journey, specifically when it comes to working with Swift / ObjC hybrid apps.
+
+# Background 
+Late last year [axi0mX](https://twitter.com/axi0mx) published an unpatchable bootrom exploit on iOS devices called [checkm8](https://github.com/axi0mX/ipwndfu). Checkm8 affects all devices that use the A5 to A11 (iPhone 4S to iPhone X) chips. The significance of this exploit is that it targets a vulnerability in the bootrom, meaning it is not tied to a specific iOS version (more details can be found [here](https://github.com/axi0mX/alloc8)). This vulnerability was then used to build the [checkra1n](https://checkra.in/) jailbreak that is currently in beta. Checkra1n officially supports iOS 12.3 and up.
+
+The adoption of the [Swift programming language](https://developer.apple.com/swift/) on the iOS platform has grown rapidly over the past few years, especially amongst larger organisations. More and more developers are opting towards writing new applications in Swift because of the many quality of life improvements it brings. In addition, many existing ObjC based applications are adopting a hybrid approach where they use both ObjC and Swift. This is facilitated by the [interoperability](https://developer.apple.com/documentation/swift/imported_c_and_objective-c_apis/importing_swift_into_objective-c) of the two languages, making it very easy to use both languages in one application. Despite there being well defined interfaces between Swift and ObjC, the two languages have bespoke differences. Details on this can be found [here](https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md).
+
+# Frida 
+Frida is a dynamic code instrumentation toolkit that works on a wide variety of platforms, including Windows, macOS, GNU/Linux, iOS, Android, and QNX. More information on Frida can be found [here](https://frida.re/docs/home/) and the source code is available [here](https://github.com/frida/frida). For setup instructions, detailed documentation can be found [here](https://frida.re/docs/installation/), and for iOS [here](https://frida.re/docs/ios/#with-jailbreak). The Frida toolkit contains several tools, including: frida CLI, frida-ps, frida-trace, frida-discover, frida-ls-devices, and frida-kill. This post will primarily focus on Frida CLI, the REPL (read–eval–print loop) interface, frida-ps, and frida-ls-devices.
+
+### Getting Started
+
+Once Frida is installed both on the host and on the device, you should be able to see the current devices attached by running the following command:
+
+```
+$ frida-ls-devices
+Id                                        Type    Name
+----------------------------------------  ------  ------------
+local                                     local   Local System
+<device_id_sequence>                      usb     iPhone
+tcp                                       remote  Local TCP
+```
+
+Note that the connect type is over USB, so the device is plugged into my machine. The current running processes on the remote device can then be listed by executing the following command:
+
+```
+$ frida-ps -D <device_id_sequence>
+```
+
+The `device_id_sequence` and the process pid / name can then be used to establish a Frida REPL session. For the purposes of this post a dummy application was used, replace `com.example.Dummy-Application` with your application.
+
+The below command can be used to tell Frida to launch the application `com.example.Dummy-Application` on the remote device `device_id_sequence`. The `--no-pause` flag simply instructs Frida to not pause the application, normally you would have to enter `%resume` once the session starts.
+
+```bash
+# Launch an application with Frida
+$ frida -D device_id_sequence -f com.example.Dummy-Application --no-pause
+```
+
+### ObjC Examples
+
+Frida exposes a rich set of APIs for interfacing with the ObjC runtime, the documentation for this can be found [here](https://frida.re/docs/javascript-api/#objc). For example, the `ObjC.classes` API can be used to interface with the ObjC classes inside of the process, as seen below:
+
+```javascript
+ObjC.classes
+
+{
+    "AAAbsintheContext": {
+        "handle": "0x1d8e10b60"
+    },
+    "AAAbsintheSigner": {
+        "handle": "0x1d8e0f3a0"
+    },
+    "AAAbsintheSignerContextCache": {
+        "handle": "0x1d8e0f080"
+    },
+    ...
+}
+```
+
+This API can also be used to interface with a specific class.
+
+```javascript
+ObjC.classes["AAAbsintheContext"]
+
+{
+    "handle": "0x1d8e10b60"
+}
+```
+
+The `ObJC.classes` API returns an object that has various properties. A small subset of these include:
+- `$className`: String contains the class name of the object
+- `$ownMethods`: An array of method names exposed by this object’s class, not including the parent class
+- `$ivars`: Instance variables mapped back to object mappings that can be written to and read
+
+These properties can be used to further understand the object at runtime. For example, the `$ownMethods` property shows the methods of the class as seen below:
+
+```javascript
+ObjC.classes["AAAbsintheContext"].$ownMethods
+
+[
+    "- init",
+    "- dealloc",
+    "- cao1NI5PNJBn:error:",
+    "- TgBfoO2wtF5L:error:",
+    "- R6XtwiyjL3q2:error:"
+]
+```
+
+This information can then be used with the interceptor API to intercept calls to the target function. In the snippet below, the `- init` function in the `AAAbsintheContext` class is hooked to log whenever the function is invoked. This could be used to log / manipulate the arguments passed to the function or change the return value. In this example the `onEnter` block was used, but there is also an `onLeave` block. More documentation on this API can be found [here](https://frida.re/docs/javascript-api/#interceptor).
+
+```javascript
+var testHook = setInterval(function(){
+    try{
+        Interceptor.attach (ObjC.classes["AAAbsintheContext"]["- init"].implementation, {
+            onEnter: function(args){
+                console.log("AAAbsintheContext - init invoked");
+            }
+        });
+
+        clearInterval(testHook);
+    }
+    catch(err){}
+
+},1);
+```
+
+Notably, Frida scripts can also be placed into a file and then loaded into frida by using the `-l` flag:
+
+```bash
+frida -D <device_id_sequence> -l app_info.ipa.js -f com.example.Dummy-Application --no-pause
+```
+
+Another use case for the ObjC API is to be able to invoke ObjC classes on demand. An example of this can be seen below to extract information about the application, such as the data / bundle directories on disk.
+
+```javascript
+function appInfo() {
+    var output = {};
+    output["Bundle ID"] = ObjC.classes.NSBundle.mainBundle().bundleIdentifier().toString();
+    output["Bundle"] = ObjC.classes.NSBundle.mainBundle().bundlePath().toString();
+    output["Data"] = ObjC.classes.NSProcessInfo.processInfo().environment().objectForKey_("HOME").toString();
+    output["Binary"] = ObjC.classes.NSBundle.mainBundle().executablePath().toString();
+    return output;
+}
+
+if (ObjC.available && "NSBundle" in ObjC.classes) {
+
+    ObjC.schedule(ObjC.mainQueue, function(){
+        console.log("[INFO] Getting the IPA info..");
+
+        var aI = appInfo();
+
+        console.log(JSON.stringify(aI, null, 2))
+    });
+} else{
+    console.log("No objc here yet, run appInfo() to get the application general info")
+}
+```
+
+### Swift Examples
+
+Unfortunately interfacing with Swift in Frida is not nearly as convenient as with ObjC. There are a few projects such as [swift-frida](https://github.com/maltek/swift-frida) that endeavour to make this easier, but from my experience they are not very stable. The approach I adopted was interfacing with the process directly, however, this limits what you’re able to do. Regardless, the approach is presented below.
+
+The first step is to identify the modules in the current process, this can be done by using the following command:
+
+```javascript
+Process.enumerateModules()
+
+[
+    {
+        "base": "0x1009c4000",
+        "name": "Dummy Application",
+        "path": "/private/var/containers/Bundle/Application/<id>/Dummy Application.app/Dummy Application",
+        "size": 65536
+    },
+    ...
+]
+```
+
+Once a module has been identified, that module can then be referenced individually through the `findModuleByName` API as seen below:
+
+```javascript
+Process.findModuleByName("Dummy Application")
+
+{
+    "base": "0x100008000",
+    "name": "Dummy Application",
+    "path": "/private/var/containers/Bundle/Application/<id>/Dummy Application.app/Dummy Application",
+    "size": 65536
+}
+```
+
+All of the exports for a given module can then be enumerated through the `enumerateExports()` function. This returns an array of objects that contain the following properties:
+- `type`: A string specifying if the export is a function or variable.
+- `name`: A string containing export name
+- `address`: An absolute address given as a native pointer
+
+```javascript
+Process.findModuleByName("Dummy Application").enumerateExports()
+
+[
+...
+    {
+        "address": "0x102c80234",
+        "name": "$s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF",
+        "type": "function"
+    },
+...
+]
+```
+
+The export shown above is an example of a Swift function. A feature of the Swift compiler is that it mangles names as part of the compilation process. The reason the compiler does this is to encode references to types for runtime instantiation and reflection. It is a common technique used to solve the problem of overloaded identifiers. Swift mangled names keep metadata in the mangled symbols. This metadata includes the function's name, attributes, module name, parameter types, return type, and more. Detailed documentation on this can be found [here](https://github.com/apple/swift/blob/master/docs/ABI/Mangling.rst). Xcode exposes a command line utility to demangle these names, as seen below:
+
+```bash
+xcrun swift-demangle s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF
+$s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF 
+---> 
+Dummy_Application.SensitiveLogic.jailbreakDetection(searchType: Swift.String) -> Swift.Bool
+```
+
+Much like the ObjC example presented in the previous section, a Swift function can be hooked using the interceptor API. In the example below, the `jailbreakDetection` function is hooked using `Interceptor.attach`. When the function is invoked, Frida will print a backtrace of the function call, and print the first argument of the function as an ObjC object. Notably, in this example the first argument `arg[0]` could be cast as an ObjC object, this is a useful trick but it does not always work. Once the function has run, the hook will then print the return value in the `onLeave` section.
+
+```javascript
+var f = Module.getExportByName('Dummy Application', 
+'$s17Dummy_Application14SensitiveLogicC18jailbreakDetection10searchTypeSbSS_tF');
+
+Interceptor.attach(f, {
+    onEnter: function (args) {
+        console.log('function called from:\n' +
+            Thread.backtrace(this.context, Backtracer.ACCURATE)
+            .map(DebugSymbol.fromAddress).join('\n') + '\n');
+
+        console.log('args[0] -> ' + new ObjC.Object(args[0]));
+    },
+    onLeave: function(retval){
+        console.log("retval -> " + r); 
+    }
+});
+```
+
+For completeness here are some useful commands used to debug objects:
+
+```javascript
+// Read the Utf8 string at arg0
+console.log('args[0] -> ' + Memory.readUtf8String(args[0]));
+
+// Read the Utf16 string at arg0
+console.log('args[0] -> ' + Memory.readUtf16String(args[0]));
+
+// Read a string at arg0 when the encoding is unknown
+console.log('args[0] -> ' + Memory.readCString(args[0]));
+
+// Create a Javascript binding given the existing object
+console.log('args[0] -> ' + new ObjC.Object(args[0]));
+
+// Obtain the class name of this object, very useful for enumerating objects
+console.log('Type of args[0] -> ' + new ObjC.Object(args[0]).$className);
+
+// Print the current context in JSON
+console.log("context:" + JSON.stringify(this.context,null,2));
+```
+
+# Debugging
+
+There are many excellent posts already on debugging iOS binaries with LLDB, for example [kov4l3nko](https://kov4l3nko.github.io/blog/2016-04-27-debugging-ios-binaries-with-lldb/) and [MSTG](https://github.com/OWASP/owasp-mstg/blob/master/Document/0x06c-Reverse-Engineering-and-Tampering.md#debugging-with-lldb). However, neither of these tutorials worked for me on iOS13. I was able to run the debug server on the device, but after I attached it to the remote server from my host it would fail. I was able to resolve this by using the following entitlements file:
+
+```xml
+$ cat entitlements.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/ PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>platform-application</key>
+    <true/>
+    <key>get-task-allow</key>
+    <true/>
+    <key>task_for_pid-allow</key>
+    <true/>
+    <key>com.apple.backboardd.debugapplications</key>
+    <true/>
+    <key>com.apple.springboard.debugapplications</key>
+    <true/>
+    <key>run-unsigned-code</key>
+    <true/>
+    <key>com.apple.private.librarian.can-get-application-info</key>
+    <true/>
+    <key>com.apple.private.mobileinstall.allowedSPI</key>
+    <array>
+        <string>Lookup</string>
+        <string>CopyInstalledAppsForLaunchServices</string>
+    </array>
+</dict>
+```
+
+I modified the entitlements on the `debugserver` by copying the entitlements file above to the device using `scp`, and then executing the following command:
+
+```bash
+ldid -Sentitlements.xml debugserver
+```
+
+I then moved the `debugserver` binary to `/usr/bin` directory and then found a process to attach to, as seen below:
+
+```bash
+mv debugserver /usr/bin/
+```
+
+```
+# List processes
+iPhone:~ root# ps -ax
+  PID TTY           TIME CMD
+    1 ??         1:36.75 /sbin/launchd -s
+   29 ??         0:00.01 checkra1nd
+   ...
+```
+
+Using the `debugserver` I then attached to the `Dummy Application` process and listened for my host's IP on port `1234`, as seen below:
+
+```
+iPhone:~ root# debugserver <host_ip>:1234 -a "Dummy Application"
+debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
+ for arm64.
+Attaching to process Dummy Application...
+Listening to port 1234 for a connection from <host_ip>...
+```
+
+From my host I was then able to connect to the remote server through lldb.
+
+```
+> lldb
+(lldb) process connect connect://<device_ip>:1234
+```
+
+Instead of timing out / disconnecting like before, the debug server acknowledged the connection, as seen below:
+
+```
+iPhone:~ root# debugserver <device_ip>:1234 -a "Dummy Application"
+debugserver-@(#)PROGRAM:LLDB  PROJECT:lldb-900.3.104
+ for arm64.
+Attaching to process Dummy Application...
+Listening to port 1234 for a connection from <device_ip>...
+Waiting for debugger instructions for process 0. //lldb connected to device
+```
+
+I was then able to get the processes base address, use r2 to calculate the target offset with ASLR, set a breakpoint, and debug as normal.
+
+```
+(lldb) imag list -o -f
+[  0] 0x000000000430c000 /private/var/containers/Bundle/Application/<id>/Dummy App.app/Dummy App(0x000000010430c000)
+[  1] 0x0000000105ce0000 /Library/Caches/cy-XK18WN.dylib(0x0000000105ce0000)
+[  2] 0x00000001059d8000 /usr/lib/substrate/SubstrateBootstrap.dylib(0x00000001059d8000)
+...
+```
+
+```
+# r2 
+> r2 -
+[0x00000000]> ? 0x0000000100dfd88c + 0x000000000430c000
+int64   4379941004
+uint64  4379941004
+hex     0x10510988c
+octal   040504114214
+unit    4.1G
+segment 10510000:088c
+string  "\x8c\x98\x10\x05\x01"
+fvalue: 4379941004.0
+float:  0.000000f
+double: 0.000000
+binary  0b0000000100000101000100001001100010001100
+trits   0t102022020122001112012
+```
+
+
+```
+(lldb) b 0x10510988c
+Breakpoint 1: where = Dummy Application`___lldb_unnamed_symbol51146$
+$Dummy Application, address = 0x000000010510988c
+```
+
+```
+Process 1904 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
+    frame #0: 0x000000010510988c Dummy Application`___lldb_unnamed_symbol51146$
+    $Dummy Application
+Dummy Application`___lldb_unnamed_symbol51146$$Dummy Application:
+->  0x10510988c <+0>:  stp    x28, x20, [sp, #-0x20]!
+    0x105109890 <+4>:  stp    x29, x30, [sp, #0x10]
+    0x105109894 <+8>:  add    x29, sp, #0x10            ; =0x10
+    0x105109898 <+12>: sub    sp, sp, #0x280            ; =0x280
+Target 0: (Dummy Application) stopped.
+
+(lldb) po $x0
+68719476736
+```
+
+# Conclusion 
+Testing on the most recent version of iOS was both good and bad. I was subjected to the latest and greatest features that the platform had to offer. This meant I spent a lot of time learning about new features / restrictions on the platform, for example the new [requirements for trusted certs](https://support.apple.com/en-gb/HT210176). I felt like I learnt a lot and I was able to identify issues that were relevant. However, I also found myself spending a lot of time debugging issues, such as [proxying traffic on burp ](https://forum.portswigger.net/thread/ios-13-burp-ssl-certs-not-able-to-be-fully-trusted-2b208cf6) / the debugserver issue presented in this post. Overall I would say the experience was very positive from a self improvement perspective, but from a time management perspective it was poor.
+
+With regards to the tooling side of things, this experience highlighted how great the [checkra1n](https://checkra.in/) jailbreak is. Despite it only being in beta, it has been extremely reliable and easy to work with. It was noticeably nicer to work with than alternatives I have used in the past, like Unc0ver and Electra. In addition, this experience made it clear that Frida could use some community support on handling Swift. I found several issues from users not knowing how to handle Swift objects, such as [this](https://github.com/frida/frida/issues/1089). Since the Swift ABI is documented and available [here](https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARM64FunctionCallingConventions.html), I’m going to spend some time looking into it and contributing if I’m successful.
+
+# Useful Resources
+- [Frida Docs](https://frida.re/docs/home/)
+- [Frida Javascript API](https://frida.re/docs/javascript-api/)
+- [Frida iOS Examples](https://frida.re/docs/examples/ios/)
+- [Debugging iOS Binaries With LLDB](https://kov4l3nko.github.io/blog/2016-04-27-debugging-ios-binaries-with-lldb/)
+- [Debugging Swift Code With LLDB](https://medium.com/flawless-app-stories/debugging-swift-code-with-lldb-b30c5cf2fd49)
+- [LLDB Cheat Sheet](https://gist.github.com/ryanchang/a2f738f0c3cc6fbd71fa)
+- [Checkra1n](https://checkra.in/)
+- [Checkm8 Source](https://github.com/axi0mX/ipwndfu)
+- [Checkm8 Write-up](https://github.com/axi0mX/alloc8)
+- [Swift Source](https://github.com/apple/swift)
+- [Swift ABI Stability Manifesto](https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md)
+- [Swift Name Mangling](https://github.com/apple/swift/blob/master/docs/ABI/Mangling.rst)
+- [Swift Data Layout](https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md#data-layout)
+- [Swift Types](https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md#a-tour-of-types)
+- [Apple ARM64 iOS platform ABI](https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARM64FunctionCallingConventions.html)
+- [ARM's AAPCS64](https://developer.arm.com/docs/ihi0055/d/procedure-call-standard-for-the-arm-64-bit-architecture)
+
+</div>
