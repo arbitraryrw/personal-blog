@@ -18,6 +18,11 @@ rm -r node_modules
 npm install
 ```
 
+To update any dependencies:
+```
+npm update
+```
+
 To update any vulnerable dependencies simply run:
 ```
 npm audit fix
