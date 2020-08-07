@@ -8,22 +8,158 @@ import styles from './document.module.css'
 
 # Walkthrough
 ### Setup
-- android platform tools (adb / fastboot)
+- [android platform tools (adb / fastboot)](https://developer.android.com/studio/releases/platform-tools)
 - unlock bootloader
 - SuperSu version
-- TWRP / twrp version
+- [TWRP](https://twrp.me/) / twrp version
+
+SuperSu Download [here](https://forum.xda-developers.com/apps/supersu/2014-09-02-supersu-v2-05-t2868133), this is version SR5-SuperSU-v2.82-SR5-20171001224502.
+
+
 
 ### Applying the Patch to SuperSu
 - clone repo
 - python dependencies
 - run the tool
 
+Clone repo
+```git
+git clone git@github.com:arbitraryrw/supersu-patcher.git
+```
+
+Install dependencies (maybe introduce virtual env?)
+```
+python3 -m pip install -r requirements.txt
+```
+
+Patch the file:
+```bash
+python3 run.py -i ./SR5-SuperSU-v2.82-SR5-20171001224502.zip
+```
+Patching output
+
+```bash
+___________________________________
+|---------SuperSu Patcher---------|
+|--------------------v0.1---------|
+‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+Starting core logic..
+[I] Patching File :: /unzipped-SR5-SuperSU-v2.82-SR5-20171001224502.zip/arm64/libsupol.so
+[i] Patching using init_patch_dict
+Patching ::
+	From -> /.supersu
+	To -> /.supersu
+Searching 9 bytes in [0x615d0-0x624c0]
+hits: 0
+Searching 9 bytes in [0x609e8-0x615d0]
+hits: 0
+Searching 9 bytes in [0x0-0x501c8]
+hits: 0
+Patching ::
+	From -> /system/xbin/su
+	To -> /system/xbin/nu
+Searching 15 bytes in [0x615d0-0x624c0]
+hits: 0
+Searching 15 bytes in [0x609e8-0x615d0]
+hits: 0
+Searching 15 bytes in [0x0-0x501c8]
+hits: 0
+Patching ::
+	From -> /system/xbin/daemonsu
+	To -> /system/xbin/daemonnu
+...
+```
+
+Directory structure after patcher run
+```bash
+supersu-patcher » tree -L 2
+.
+├── LICENSE
+├── README.md
+├── output
+│   ├── copy-SR5-SuperSU-v2.82-SR5-20171001224502.zip
+│   ├── patched-SR5-SuperSU-v2.82-SR5-20171001224502.zip
+│   └── unzipped-SR5-SuperSU-v2.82-SR5-20171001224502.zip
+├── requirements.txt
+├── run.py
+└── src
+    ├── core
+    └── utils
+```
+
+
+
 ### Installation
 - boot to TWRP image
 - install patched SuperSu using TWRP
 
+- List all devices: https://twrp.me/Devices/
+
+```
+No it's the internal codename for the device used for identification purposes. It's dumpling for the 5t, cheeseburger for the 5, most devices(OnePlus or not) have code names.
+```
+
+Boot device into fastboot
+```
+adb reboot bootloader
+```
+
+Check the device is connected via fastboot
+
+```
+fastboot devices
+<hash>	fastboot
+```
+
+Download TWRP for your device, unfortunately all of the official builds from TWRP did not work for me. I resorted to using an official [TWRP version](https://forum.xda-developers.com/oneplus-5t/development/recovery-twrp-3-2-1-0-oreo-8-0-8-1-t3729673) for my OnePlus 5T (codename Dumpling).
+
+
+```
+fastboot boot twrp-3.2.3-0-20180822-codeworkx-dumpling.img
+Sending 'boot.img' (26944 KB)                      OKAY [  0.599s]
+Booting                                            OKAY [  0.013s]
+Finished. Total time: 0.636s
+```
+
+
+Push patched SuperSu to device:
+
+```
+adb push patched-SR5-SuperSU-v2.82-SR5-20171001224502.zip /sdcard/
+patched-SR5-SuperSU-v2.82-SR5-20171001224502.zip: 1 file pushed, 0 skipped. 28.8 MB/s (14913677 bytes in 0.494s)
+```
+
+
+
 # Results
 - custom root working
+
+```
+adb shell
+OnePlus5T:/ $ su
+/system/bin/sh: su: not found
+127|OnePlus5T:/ $ nu
+OnePlus5T:/ # whoami
+root
+OnePlus5T:/ # exit
+OnePlus5T:/ $ whoami
+shell
+```
+
+Accessing application sandbox data:
+
+```
+OnePlus5T:/ # ls /data/data/com.oneplus.security/
+cache code_cache databases shared_prefs
+OnePlus5T:/ # cat /data/data/com.oneplus.security/shared_prefs/oneplus_security_preference.xml
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <int name="permission_switch" value="1" />
+</map>
+OnePlus5T:/ #
+```
+
+
 
 # Clean-up
 - Safetynet bypass
@@ -31,7 +167,7 @@ import styles from './document.module.css'
 
 # Conclusion 
 
-# Useful Resources
+# Useful References
 - [Magisk](https://magiskmanager.com/)
 - [Magisk Hide](https://magiskmanager.com/#What_is_Magisk_Hide)
 - [SuperSu](https://supersuroot.org/)
@@ -44,5 +180,13 @@ import styles from './document.module.css'
     - [Safetynet Patch - verifiedbootstate flag](https://github.com/AOSPA/android_kernel_oneplus_msm8996/commit/5771610418712eb6eb0c36cdd2da52bff5ecc15e#diff-c642f0bb1b95c6f380ab96167f5f8118)
 - [My Patched Custom Kernel](https://github.com/arbitraryrw/android_kernel_oneplus_msm8998)
 - [SuperSu Patcher Source](https://github.com/arbitraryrw/supersu-patcher)
+
+# Useful Tools
+- [unbricking tools](https://forum.xda-developers.com/oneplus-5t/how-to/op5t-collection-unbrick-tools-t3898890)
+- [Official TWRP Recovery That Didn't Work](https://twrp.me/oneplus/oneplus5-5t.html)
+- [Codeworkx Unofficial TWRP Recovery](https://forum.xda-developers.com/oneplus-5t/development/recovery-twrp-3-2-1-0-oreo-8-0-8-1-t3729673)
+- [OnePlus 5T Official Stock Images](https://www.oneplus.com/uk/support/softwareupgrade/details?code=PM1574156155944)
+- [OnePlus 5T Recovery Images](https://forums.oneplus.com/threads/oneplus-5t-rom-ota-oxygen-os-mirrors-for-official-oxygen-os-roms-and-ota-updates.686610/)
+- [SuperSu Version Used](https://forum.xda-developers.com/apps/supersu/2014-09-02-supersu-v2-05-t2868133)
 
 </div>
