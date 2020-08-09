@@ -28,12 +28,12 @@ Dynamic security testing / research on the Android platform is almost always acc
 
 On the other hand, working on a non-rooted device is not a straightforward process either. Although there are methods to use bread and butter tools on non-rooted devices, such as [Frida](https://frida.re/), generally it is more cumbersome. From my experience, it often adds additional complexity and can introduce more problems than it solves. Especially when working with multiple applications. A great example of this is: to be able to use [Frida Gadget](https://frida.re/docs/gadget/) you need to repackage the application, however, by repacking the application you now need to bypass APK signature detections.
 
-The way that I usually handle this dilemma is by using a rooted device and bypassing any root detection controls that get in the way. Fortunately, there are many tools that offer effective root bypasses that work on most applications, such as [Objection](https://github.com/sensepost/objection) or [Magisk Hide](https://www.xda-developers.com/how-to-use-magisk/). Unfortunately, these tools are not always effective, many sophisticated applications are not so easily defeated. When this happens you’re forced to manually reverse the application and write a custom hook / patch it statically. Depending on the obfuscation / tamper resistance of the application this can be extremely time consuming. This is pretty much the worst case scenario.
+The way that I usually handle this dilemma is by using a rooted device and bypassing any root detection controls that get in the way. Fortunately, there are many tools that offer effective root bypasses that work on most applications, such as [Objection](https://github.com/sensepost/objection) and [Magisk Hide](https://www.xda-developers.com/how-to-use-magisk/). Unfortunately, these tools are not always effective, many sophisticated applications are not so easily defeated. When this happens you’re forced to manually reverse the application and write a custom hook / patch it statically. Depending on the obfuscation / tamper resistance of the application this can be extremely time consuming. This is pretty much the worst case scenario.
 
-This post presents an alternative solution to prevent the worst case and dramatically improve your quality of life when it comes to testing on a rooted device.
+The purpose of this post is to present an alternative approach that bypasses most root detection methods. The aim of this is to help prevent the worst case scenario and improve your quality of life when it comes to testing hardened applications.
 
 # Background 
-There are many different methodologies / approaches when it comes to root detection. For the purposes of this post, it is important to understand that many root detection methodologies are primarily built on detecting the presence of files on disk. For example, detecting the presence of the `su` binary on disk, or a root management application such as [SuperSu](https://supersuroot.org/) or [Magisk](https://magiskmanager.com/) is an obvious red flag. There is no ambiguity, if a device has these files on disk there is almost a 100% chance the device is rooted.
+There are many different methodologies / approaches when it comes to root detection. For the purposes of this post, it is important to understand that many root detection methodologies are primarily built on detecting the presence of files on disk. For example, detecting the presence of the `su` binary on disk, or a root management application such as [SuperSu](https://supersuroot.org/) or [Magisk](https://magiskmanager.com/). If a device has these files on disk there is very little ambiguity, the device is almost certainly  rooted.
 
 Notably, there are additional methods for detecting if a device is rooted that are not so straight forward. Such as checking file system permissions, system properties, or even how the OS was signed (test / prod keys). Many of these checks are not individually enough to say the device is definitely rooted. For example, it is not uncommon for custom ROMs to be signed using test keys, or ROMs to ship with different utilities. Often these checks are only used to support the file system checks to provide further assurance and avoid false positives.
 
@@ -43,37 +43,43 @@ A more in depth breakdown of the individual techniques can be found in the [MSTG
 This section breaks down taking the [SuperSU](https://supersuroot.org/) framework, patching it to modify any common signatures, flashing it onto a device, and cleaning up any loose ends. For the purposes of this post, the device is a  [OnePlus 5T](https://www.oneplus.com/uk/support/spec/oneplus-5t). __This has not been tested on any other device so proceed with caution__.
 
 ### Setup
-- [android platform tools (adb / fastboot)](https://developer.android.com/studio/releases/platform-tools)
-- unlock bootloader - This will wipe the device
-- SuperSu version
-- [TWRP](https://twrp.me/) / twrp version
+Firstly, make sure the host machine and test device have the required settings / official Android utilities to be able to proceed.
 
-SuperSu Download [here](https://forum.xda-developers.com/apps/supersu/2014-09-02-supersu-v2-05-t2868133), this is version SR5-SuperSU-v2.82-SR5-20171001224502.
+- The host machine you are using to interact with the test device has the necessary tools. This includes the `adb` and `fastboot` utilities that are shipped with the [android platform tools](https://developer.android.com/studio/releases/platform-tools) package. These tools provide a convenient mechanism of interfacing with Android devices. 
 
+- The test device’s bootloader is unlocked, this is required to be able to flash third-party software onto the device. Keep in mind that unlocking the bootloader will delete any user data on the device. This can be done in the `Developer options` menu in the `Settings` app.
 
+Secondly, get the required third-party tools, this includes a tool to flash third-party firmware onto an Android device, and a version of SuperSU.
+
+- For flashing third-party firmware onto the device, I’m going to use [TWRP](https://twrp.me/). This tool provides support for many [devices](https://twrp.me/Devices/), however, the [OnePlus5T (Dumpling)](https://twrp.me/oneplus/oneplus5-5t.html) build did not work for me. I opted to use an unofficial version by Codeworkx found  [here](https://forum.xda-developers.com/oneplus-5t/development/recovery-twrp-3-2-1-0-oreo-8-0-8-1-t3729673).
+
+- For the SuperSU version, I used [SuperSU v2.82 SR5](https://forum.xda-developers.com/apps/supersu/2014-09-02-supersu-v2-05-t2868133).
 
 ### Applying the Patch to SuperSu
-- clone repo
-- python dependencies
-- run the tool
+Patching each signature by hand is extremely error prone and boring. To speed up the process, I have written a tool that takes a SuperSU archive, patches each of the files, and repackages it ready to be flashed onto a device. This tool is called supersu-patcher, or SuperNU, it is open source and publicly available [here](https://github.com/arbitraryrw/supersu-patcher).
 
-Clone repo
+Firstly, clone the repository:
+
 ```git
 git clone git@github.com:arbitraryrw/supersu-patcher.git
 ```
 
-Install dependencies (maybe introduce virtual env?)
+Browse to the directory and install the required python dependencies. I would recommend using a [virtual envionrment](https://docs.python.org/3/tutorial/venv.html). In addition, install [Radare2](https://rada.re/n/) as the `r2-pipe` python package depends on this system utility.
+
 ```
+cd supersu-patcher
 python3 -m pip install -r requirements.txt
 ```
 
-Patch the file:
+Run supersu-patcher against the supersu archive to apply the patches.
+
 ```bash
 python3 run.py -i ./SR5-SuperSU-v2.82-SR5-20171001224502.zip
 ```
-Patching output
 
-```bash
+This should produce the following output, renaming any reference of `su` to `nu`.
+
+```
 ___________________________________
 |---------SuperSu Patcher---------|
 |--------------------v0.1---------|
@@ -105,8 +111,9 @@ Patching ::
 ...
 ```
 
-Directory structure after patcher run
-```bash
+Once the patching has completed, this should produce the following directory structure containing the patched archive in the `output` directory.
+
+```
 supersu-patcher » tree -L 2
 .
 ├── LICENSE
@@ -122,32 +129,22 @@ supersu-patcher » tree -L 2
     └── utils
 ```
 
-
-
 ### Installation
-- boot to TWRP image
-- install patched SuperSu using TWRP
 
-- List all devices: https://twrp.me/Devices/
+The next step is to flash the patched SuperSU archive onto the test device. Connect the test device to the host machine set up with the required tools / utilities. Verify the device is visible by running `adb devices`. If it is visible, then execute the following command to boot the device to the bootloader.
 
-```
-No it's the internal codename for the device used for identification purposes. It's dumpling for the 5t, cheeseburger for the 5, most devices(OnePlus or not) have code names.
-```
-
-Boot device into fastboot
 ```
 adb reboot bootloader
 ```
 
-Check the device is connected via fastboot
+Once the device has booted into the bootloader menu it should be visible using the `fastboot` utility. Execute the following command to verify the device is visible.
 
 ```
 fastboot devices
 <hash>	fastboot
 ```
 
-Download TWRP for your device, unfortunately all of the official builds from TWRP did not work for me. I resorted to using an official [TWRP version](https://forum.xda-developers.com/oneplus-5t/development/recovery-twrp-3-2-1-0-oreo-8-0-8-1-t3729673) for my OnePlus 5T (codename Dumpling).
-
+Boot the device into the TWRP image downloaded previously by executing the command below. Notably, this can take some trial and error to find a working image, you may have to resort to using an unofficial image like I did.
 ```
 fastboot boot twrp-3.2.3-0-20180822-codeworkx-dumpling.img
 Sending 'boot.img' (26944 KB)                      OKAY [  0.599s]
@@ -155,27 +152,39 @@ Booting                                            OKAY [  0.013s]
 Finished. Total time: 0.636s
 ```
 
-Push patched SuperSu to device:
+You should see the TWRP splash screen on the test device if everything was successful. If not, you will see a black screen, simply reboot the device. Assuming everything was successful, run `adb devices` to confirm you are able to communicate with the device. If so, push the patched SuperSU archive onto the device as seen below.
 
 ```
 adb push patched-SR5-SuperSU-v2.82-SR5-20171001224502.zip /sdcard/
 patched-SR5-SuperSU-v2.82-SR5-20171001224502.zip: 1 file pushed, 0 skipped. 28.8 MB/s (14913677 bytes in 0.494s)
 ```
 
+On the test device, navigate to the `install` function in the TWRP menu.
 
 <img src={twrpFuncSelectScreen} className={styles["screenshot"]} alt="TWRP function selection screen" />
 
+Next select the patched zip archive that was previously pushed onto the device, and select `Install image`.
+
 <img src={twrpInstallZipSelectFile} className={styles["screenshot"]} alt="TWRP install zip screen, select file" />
+
+This should redirect you to a confirmation screen, confirm the installation by swiping the slider.
 
 <img src={twrpInstallZipConfirm} className={styles["screenshot"]} alt="TWRP install confirmation screen" />
 
+This will then begin the installation, you should see the installation logs below.
+
+<img src={twrpInstallLogs} className={styles["screenshot"]} alt="TWRP installation logs" />
+
+Finally, press the `Reboot System` button. I would recommend not installing the TWRP app for detection purposes. This introduces another unnecessary signature and defeats the purpose of this exercise.
+
 <img src={twrpRebootScreen} className={styles["screenshot"]} alt="TWRP reboot screen" />
+
+# Results
+Once the device is rebooted, you should see that the SuperSU application present in the device application list. 
 
 <img src={superSuAppPresent} className={styles["screenshot"]} alt="SuperSu management app present on device reboot" />
 
-
-# Results
-- custom root working
+The real test is are you able to gain root user access. Connect to the device via `adb` and verify that you can access the root user as seen below.
 
 ```
 adb shell
@@ -189,7 +198,7 @@ OnePlus5T:/ $ whoami
 shell
 ```
 
-Accessing application sandbox data:
+To double check everything is working, as the root user bypass the device sandbox restrictions and access an application’s sandbox data.
 
 ```
 OnePlus5T:/ # ls /data/data/com.oneplus.security/
@@ -207,17 +216,27 @@ OnePlus5T:/ #
 - Safetynet bypass
 - Kernel patch
 
-I would highly recommend removing the management SuperSu management application as this acts as a common root detection signature.
+At this point the patched root is working and you’re now able to access the root user using the patched `nu` utility, instead of the conventional `su` utility. However, there are still a few loose ends that need to be cleaned up. For example, the SuperSU management application is still present, this is an extremely common technique for root detection. I would highly recommend removing the management application because of ths. In addition, the management application is not even aware of the root so it serves no purpose.
 
 <img src={superSuNotDetected} className={styles["screenshot"]} alt="SuperSu management app does not detect root" />
 
+This setup as it currently stands will be quite effective, however, it will fail the [SafetyNet](https://developer.android.com/training/safetynet/attestation#use-response-server) API checks, for context: 
 
-__KERNEL PATCH CONTENT__
+_“The SafetyNet Attestation API is an anti-abuse API that allows app developers to assess the Android device their app is running on” - [Android Docs](https://developer.android.com/training/safetynet/attestation#:~:text=The%20SafetyNet%20Attestation%20API%20is,on%20a%20genuine%20Android%20device.)._ 
+
+This API is commonly used by many developers as part of their root detection logic. It comes in two parts, [basic](https://developer.android.com/training/safetynet/attestation#use-response-server) and [cts](https://source.android.com/compatibility/cts). The test device will fail the cts check because the device's bootloader is unlocked. Unfortunately, as part of this process we had to unlock the bootloader. To bypass this, you will need to apply a kernel level patch. Many popular custom kernels such as [Paranoid Android](https://forum.xda-developers.com/le-pro3/development/rom-paranoid-android-t3635168) or [ElementalX](https://elementalx.org/) have this patch built in. For reference here are the commits for each:
+
+__Paranoid Android:__ [Patch 1](https://github.com/AOSPA/android_kernel_oneplus_msm8996/commit/5771610418712eb6eb0c36cdd2da52bff5ecc15e#diff-c642f0bb1b95c6f380ab96167f5f8118), and [patch 2](https://github.com/AOSPA/android_kernel_oneplus_msm8996/commit/5771610418712eb6eb0c36cdd2da52bff5ecc15e#diff-c642f0bb1b95c6f380ab96167f5f8118)
+
+__Flar2 (ElementalX):__ [Patch 1](https://github.com/flar2/android_kernel_oneplus_msm8996/commit/6fa070485cf6494a9217c66aa3fad4971b5b85b7#diff-c642f0bb1b95c6f380ab96167f5f8118), and [patch 2](https://github.com/flar2/android_kernel_oneplus_msm8996/commit/8736c7adfe8dda689635bb13ec662c0549ad3854#diff-c642f0bb1b95c6f380ab96167f5f8118)
+
+You can either use one of these kernels or compile your own custom kernel as I have [here](https://github.com/arbitraryrw/android_kernel_oneplus_msm8998). This can then be flashed onto the device the exact same way the patched SuperSU archive was earlier in this post. Once this has been done, the device should pass the SafetyNet checks (tested using the [SafetyNet Test](https://play.google.com/store/apps/details?id=org.freeandroidtools.safetynettest&hl=en_GB) app) as seen below.
 
 <img src={safetynetPassImage} className={styles["screenshot"]} alt="SafetyNet basic and CTS pass" />
 
-
 # Conclusion 
+
+The approach presented in this post should help you create an effective test device that allows you to focus on what is really important. Instead of wasting precious time bypassing root detections and unblocking tools, you can invest time into looking at interesting problems. For more information on setting up your device for security testing, I would recommend reading the [MSTG - testing setup section](https://mobile-security.gitbook.io/mobile-security-testing-guide/android-testing-guide/0x05b-basic-security_testing#basic-android-testing-setup).
 
 # Useful References
 - [MSTG Android Testing Setup](https://mobile-security.gitbook.io/mobile-security-testing-guide/android-testing-guide/0x05b-basic-security_testing)
