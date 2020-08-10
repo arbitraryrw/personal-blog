@@ -11,36 +11,38 @@ import safetynetPassImage from './imgs/safetynet_pass.jpg'
 
 <div className={styles["blogBody"]}>
 
-# Disclaimer
-Rooting your Android device is your decision, I am by no means responsible for any damage. Proceed with caution, the process of Rooting a device can be risky, including but not limited to:
-
-- Bricking the device, rendering it unusuable
-- Voiding the device warranty
-- Introducing additional security risks
-
 # Definitions
 __Rooted device__ - For the purpose of this blog post, this is defined as: _modifying the operating system so that you can run commands as the root user_. There are broader definitions that include anything that is not stock Android, such as custom ROMs, however, this is outside the scope of this post.
 
 __Root Detection__ - Logic used to detect the presence of a rooted device. For example, the presence and or absence of files on the filesystem, binary behavioural differences, etc.
 
 # Introduction
-Dynamic security testing / research on the Android platform is almost always accomplished on a rooted device. This is because having root privilege access allows you to bypass many restrictions that are built into the platform. Making it easy to extract data from the device or tamper with applications. However, many mobile applications take it upon themselves to block access from rooted devices. This is common practice because the user has introduced a mechanism to bypass restrictions that are rightfully built into the platform. These restrictions are there to protect the user, and their data. Naturally, service providers want to reduce the potential attack surface as much as possible - blocking rooted devices is the easiest solution for that.
+Dynamic security testing / research on the Android platform is almost always accomplished on a rooted device. This is because having root privilege access allows you to bypass many restrictions that are built into the platform. Making it easy to extract data from the device or tamper with applications. However, many mobile applications take it upon themselves to block access from rooted devices. This is common practice because the user has introduced a mechanism to bypass restrictions that are rightfully built into the platform. These restrictions are there to protect the user, and their data. Naturally, service providers want to reduce the potential attack surface as much as possible, blocking rooted devices is the easiest solution for that in this case.
 
-On the other hand, working on a non-rooted device is not a straightforward process either. Although there are methods to use bread and butter tools on non-rooted devices, such as [Frida](https://frida.re/), generally it is more cumbersome. From my experience, it often adds additional complexity and can introduce more problems than it solves. Especially when working with multiple applications. A great example of this is: to be able to use [Frida Gadget](https://frida.re/docs/gadget/) you need to repackage the application, however, by repacking the application you now need to bypass APK signature detections.
+The alternative is to use a non-rooted device, however, this is not as easy as it sounds. Although there are methods to use bread and butter tools on non-rooted devices, such as [Frida](https://frida.re/), generally it is more cumbersome. From my experience, it often adds additional complexity and can introduce more problems than it solves. Especially when working with multiple applications. A great example of this is: to be able to use [Frida Gadget](https://frida.re/docs/gadget/) you need to repackage the application. However, by repacking the application, you now need to bypass APK signature detections. This can often go on and on, like [Hal trying to replace a lightbulb](https://www.youtube.com/watch?v=AbSehcT19u0).
 
-The way that I usually handle this dilemma is by using a rooted device and bypassing any root detection controls that get in the way. Fortunately, there are many tools that offer effective root bypasses that work on most applications, such as [Objection](https://github.com/sensepost/objection) and [Magisk Hide](https://www.xda-developers.com/how-to-use-magisk/). Unfortunately, these tools are not always effective, many sophisticated applications are not so easily defeated. When this happens you’re forced to manually reverse the application and write a custom hook / patch it statically. Depending on the obfuscation / tamper resistance of the application this can be extremely time consuming. This is pretty much the worst case scenario.
+The way that I usually handle this dilemma is by biting the bullet and using a rooted device. Bypassing any root detection controls that get in the way. Fortunately, there are many tools that offer effective root bypasses that work on most applications, such as [Objection](https://github.com/sensepost/objection) and [Magisk Hide](https://www.xda-developers.com/how-to-use-magisk/). Unfortunately, these tools are not always effective, many sophisticated applications are not so easily defeated. When this happens you’re forced to manually reverse the application and write a custom hook / patch it statically. Depending on the obfuscation and tamper resistance of the application, this can be extremely time consuming. This is pretty much the worst case scenario.
 
-The purpose of this post is to present an alternative approach that bypasses most root detection methods. The aim of this is to help prevent the worst case scenario and improve your quality of life when it comes to testing hardened applications.
+The purpose of this post is to present an alternative solution that bypasses most root detection methods. Instead of writing a series of hooks to try and hide common root signatures, I have simply changed the signatures in the root itself. The aim of this is to help prevent the worst case scenario and improve your quality of life when it comes to testing hardened applications.
 
 # Background 
-There are many different methodologies / approaches when it comes to root detection. For the purposes of this post, it is important to understand that many root detection methodologies are primarily built on detecting the presence of files on disk. For example, detecting the presence of the `su` binary on disk, or a root management application such as [SuperSu](https://supersuroot.org/) or [Magisk](https://magiskmanager.com/). If a device has these files on disk there is very little ambiguity, the device is almost certainly  rooted.
+There are many different methodologies / approaches when it comes to root detection. For the purposes of this post, it is important to understand that many root detection methodologies are primarily built on detecting the presence of files on disk. For example, detecting the presence of the `su` binary on disk, or a root management application such as [SuperSU](https://supersuroot.org/) or [Magisk](https://magiskmanager.com/). If a device has these files on disk there is very little ambiguity, the device is almost certainly  rooted.
 
 Notably, there are additional methods for detecting if a device is rooted that are not so straight forward. Such as checking file system permissions, system properties, or even how the OS was signed (test / prod keys). Many of these checks are not individually enough to say the device is definitely rooted. For example, it is not uncommon for custom ROMs to be signed using test keys, or ROMs to ship with different utilities. Often these checks are only used to support the file system checks to provide further assurance and avoid false positives.
+
+The point I’m trying to highlight here is that hiding the `su` binary and any associated binaries is the 200iq play.
 
 A more in depth breakdown of the individual techniques can be found in the [MSTG - Testing Root Detection](https://mobile-security.gitbook.io/mobile-security-testing-guide/android-testing-guide/0x05j-testing-resiliency-against-reverse-engineering#testing-root-detection-mstg-resilience-1) gitbook. This is a great resource and I would highly recommend it.
 
 # Walkthrough
 This section breaks down taking the [SuperSU](https://supersuroot.org/) framework, patching it to modify any common signatures, flashing it onto a device, and cleaning up any loose ends. For the purposes of this post, the device is a  [OnePlus 5T](https://www.oneplus.com/uk/support/spec/oneplus-5t). __This has not been tested on any other device so proceed with caution__.
+
+### Disclaimer
+Before proceeding please acknowledge that rooting your Android device is your decision, I am by no means responsible for any damage. The process of Rooting a device can be risky, including but not limited to:
+
+- Bricking the device, rendering it unusuable
+- Voiding the device warranty
+- Introducing additional security risks
 
 ### Setup
 Firstly, make sure the host machine and test device have the required settings / official Android utilities to be able to proceed.
@@ -55,7 +57,7 @@ Secondly, get the required third-party tools, this includes a tool to flash thir
 
 - For the SuperSU version, I used [SuperSU v2.82 SR5](https://forum.xda-developers.com/apps/supersu/2014-09-02-supersu-v2-05-t2868133).
 
-### Applying the Patch to SuperSu
+### Applying the Patch to SuperSU
 Patching each signature by hand is extremely error prone and boring. To speed up the process, I have written a tool that takes a SuperSU archive, patches each of the files, and repackages it ready to be flashed onto a device. This tool is called supersu-patcher, or SuperNU, it is open source and publicly available [here](https://github.com/arbitraryrw/supersu-patcher).
 
 Firstly, clone the repository:
@@ -64,7 +66,7 @@ Firstly, clone the repository:
 git clone git@github.com:arbitraryrw/supersu-patcher.git
 ```
 
-Browse to the directory and install the required python dependencies. I would recommend using a [virtual envionrment](https://docs.python.org/3/tutorial/venv.html). In addition, install [Radare2](https://rada.re/n/) as the `r2-pipe` python package depends on this system utility.
+Browse to the directory and install the required python dependencies. I would recommend using a [virtual envionrment](https://docs.python.org/3/tutorial/venv.html). In addition, install [Radare2](https://rada.re/n/) as the `r2-pipe` python package depends on this system utility, this is not doucmented in this post but instructions are available [here](https://github.com/radareorg/radare2).
 
 ```
 cd supersu-patcher
@@ -81,7 +83,7 @@ This should produce the following output, renaming any reference of `su` to `nu`
 
 ```
 ___________________________________
-|---------SuperSu Patcher---------|
+|---------SuperSU Patcher---------|
 |--------------------v0.1---------|
 ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 Starting core logic..
@@ -131,7 +133,7 @@ supersu-patcher » tree -L 2
 
 ### Installation
 
-The next step is to flash the patched SuperSU archive onto the test device. Connect the test device to the host machine set up with the required tools / utilities. Verify the device is visible by running `adb devices`. If it is visible, then execute the following command to boot the device to the bootloader.
+The next step is to flash the patched SuperSU archive onto the test device. Connect the test device to the host machine that was previously set up with the required tools / utilities. Once connected, verify the device is visible by running `adb devices`. If it is visible, then execute the following command to boot the device to the bootloader.
 
 ```
 adb reboot bootloader
@@ -171,11 +173,11 @@ This should redirect you to a confirmation screen, confirm the installation by s
 
 <img src={twrpInstallZipConfirm} className={styles["screenshot"]} alt="TWRP install confirmation screen" />
 
-This will then begin the installation, you should see the installation logs below.
+This will then begin the installation, you should see the installation logs below. Press the `Reboot System` button once everything is complete.
 
 <img src={twrpInstallLogs} className={styles["screenshot"]} alt="TWRP installation logs" />
 
-Finally, press the `Reboot System` button. I would recommend not installing the TWRP app for detection purposes. This introduces another unnecessary signature and defeats the purpose of this exercise.
+Finally, press the `Do Not Install` button. I would recommend not installing the TWRP app for detection purposes. This introduces another unnecessary signature and defeats the purpose of this exercise.
 
 <img src={twrpRebootScreen} className={styles["screenshot"]} alt="TWRP reboot screen" />
 
@@ -212,38 +214,37 @@ OnePlus5T:/ #
 ```
 
 # Clean-up
-- Remove root management apps 
-- Safetynet bypass
-- Kernel patch
-
-At this point the patched root is working and you’re now able to access the root user using the patched `nu` utility, instead of the conventional `su` utility. However, there are still a few loose ends that need to be cleaned up. For example, the SuperSU management application is still present, this is an extremely common technique for root detection. I would highly recommend removing the management application because of ths. In addition, the management application is not even aware of the root so it serves no purpose.
+At this point the patched root is working and you’re now able to access the root user using the patched `nu` utility, instead of the conventional `su` utility. However, there are still a few loose ends that need to be cleaned up. For example, the SuperSU management application is still present, this is an extremely common signature for root detection. I would highly recommend removing the management application because of this. In addition, the management application is not even aware of the root so it serves no purpose.
 
 <img src={superSuNotDetected} className={styles["screenshot"]} alt="SuperSu management app does not detect root" />
 
-This setup as it currently stands will be quite effective, however, it will fail the [SafetyNet](https://developer.android.com/training/safetynet/attestation#use-response-server) API checks, for context: 
+Another problem with this setup is that as it currently stands it will fail the [SafetyNet](https://developer.android.com/training/safetynet/attestation#use-response-server) API checks, for context: 
 
-_“The SafetyNet Attestation API is an anti-abuse API that allows app developers to assess the Android device their app is running on” - [Android Docs](https://developer.android.com/training/safetynet/attestation#:~:text=The%20SafetyNet%20Attestation%20API%20is,on%20a%20genuine%20Android%20device.)._ 
+_“The SafetyNet Attestation API is an anti-abuse API that allows app developers to assess the Android device their app is running on”_ - [Android Docs](https://developer.android.com/training/safetynet/attestation#:~:text=The%20SafetyNet%20Attestation%20API%20is,on%20a%20genuine%20Android%20device.).
 
 This API is commonly used by many developers as part of their root detection logic. It comes in two parts, [basic](https://developer.android.com/training/safetynet/attestation#use-response-server) and [cts](https://source.android.com/compatibility/cts). The test device will fail the cts check because the device's bootloader is unlocked. Unfortunately, as part of this process we had to unlock the bootloader. To bypass this, you will need to apply a kernel level patch. Many popular custom kernels such as [Paranoid Android](https://forum.xda-developers.com/le-pro3/development/rom-paranoid-android-t3635168) or [ElementalX](https://elementalx.org/) have this patch built in. For reference here are the commits for each:
 
-__Paranoid Android:__ [Patch 1](https://github.com/AOSPA/android_kernel_oneplus_msm8996/commit/5771610418712eb6eb0c36cdd2da52bff5ecc15e#diff-c642f0bb1b95c6f380ab96167f5f8118), and [patch 2](https://github.com/AOSPA/android_kernel_oneplus_msm8996/commit/5771610418712eb6eb0c36cdd2da52bff5ecc15e#diff-c642f0bb1b95c6f380ab96167f5f8118)
+__Flar2 (ElementalX):__ [Patch 1](https://github.com/flar2/android_kernel_oneplus_msm8996/commit/6fa070485cf6494a9217c66aa3fad4971b5b85b7#diff-c642f0bb1b95c6f380ab96167f5f8118) and [patch 2](https://github.com/flar2/android_kernel_oneplus_msm8996/commit/8736c7adfe8dda689635bb13ec662c0549ad3854#diff-c642f0bb1b95c6f380ab96167f5f8118)
 
-__Flar2 (ElementalX):__ [Patch 1](https://github.com/flar2/android_kernel_oneplus_msm8996/commit/6fa070485cf6494a9217c66aa3fad4971b5b85b7#diff-c642f0bb1b95c6f380ab96167f5f8118), and [patch 2](https://github.com/flar2/android_kernel_oneplus_msm8996/commit/8736c7adfe8dda689635bb13ec662c0549ad3854#diff-c642f0bb1b95c6f380ab96167f5f8118)
+__Paranoid Android:__ [Patch 1](https://github.com/AOSPA/android_kernel_oneplus_msm8996/commit/5771610418712eb6eb0c36cdd2da52bff5ecc15e#diff-c642f0bb1b95c6f380ab96167f5f8118) and [patch 2](https://github.com/AOSPA/android_kernel_oneplus_msm8996/commit/5771610418712eb6eb0c36cdd2da52bff5ecc15e#diff-c642f0bb1b95c6f380ab96167f5f8118)
 
-You can either use one of these kernels or compile your own custom kernel as I have [here](https://github.com/arbitraryrw/android_kernel_oneplus_msm8998). This can then be flashed onto the device the exact same way the patched SuperSU archive was earlier in this post. Once this has been done, the device should pass the SafetyNet checks (tested using the [SafetyNet Test](https://play.google.com/store/apps/details?id=org.freeandroidtools.safetynettest&hl=en_GB) app) as seen below.
+You can either use one of these kernels and it should work, or compile your own custom kernel as I have [here](https://github.com/arbitraryrw/android_kernel_oneplus_msm8998). This can then be flashed onto the device the exact same way the patched SuperSU archive was earlier in this post. Once this has been done, the device should pass the SafetyNet checks (tested using the [SafetyNet Test](https://play.google.com/store/apps/details?id=org.freeandroidtools.safetynettest&hl=en_GB) app) as seen below.
 
 <img src={safetynetPassImage} className={styles["screenshot"]} alt="SafetyNet basic and CTS pass" />
 
 # Conclusion 
+The content and tools presented in this post should help you create an effective test environment that allows you to focus on what is really important. Instead of wasting precious time bypassing root detection controls and unblocking tools, you can invest time into solving interesting problems. This has been an invaluable time saver for me when testing many applications for bug bounties and CTFs.
 
-The approach presented in this post should help you create an effective test device that allows you to focus on what is really important. Instead of wasting precious time bypassing root detections and unblocking tools, you can invest time into looking at interesting problems. For more information on setting up your device for security testing, I would recommend reading the [MSTG - testing setup section](https://mobile-security.gitbook.io/mobile-security-testing-guide/android-testing-guide/0x05b-basic-security_testing#basic-android-testing-setup).
+With regards to future work, the approach presented in this post could also easily be applied to [Magisk](https://magiskmanager.com/). However, the developers have already done a fantastic job with [Magisk Hide](https://github.com/topjohnwu/Magisk) when it comes to circumventing root detections / system integrity checks. My solution is not effective at scale, whereas [Magisk Hide](https://github.com/topjohnwu/Magisk) is. A future enhancement I could make is to allow the user to arbitrarily name the `su` utility, instead of just `nu`. Although this approach has limited entropy.
+
+Regardless, I hope this approach proves to be as effective for you as it has done for me. Goodluck and happy hacking!
 
 # Useful References
 - [MSTG Android Testing Setup](https://mobile-security.gitbook.io/mobile-security-testing-guide/android-testing-guide/0x05b-basic-security_testing)
 - [Magisk](https://magiskmanager.com/)
 - [Magisk Hide](https://magiskmanager.com/#What_is_Magisk_Hide)
 - [Magisk Source - Github](https://github.com/topjohnwu/Magisk)
-- [SuperSu](https://supersuroot.org/)
+- [SuperSU](https://supersuroot.org/)
 - [MSTG Root Detection](https://github.com/OWASP/owasp-mstg/blob/master/Document/0x05j-Testing-Resiliency-Against-Reverse-Engineering.md#file-existence-checks)
 - [TWRP](https://twrp.me/)
 - [ElementalX Android Custom Kernel](https://elementalx.org/)
@@ -254,8 +255,8 @@ The approach presented in this post should help you create an effective test dev
 - [My Patched Custom Kernel](https://github.com/arbitraryrw/android_kernel_oneplus_msm8998)
 - [SuperSu Patcher Source](https://github.com/arbitraryrw/supersu-patcher)
 
-# Useful Tools
-- [unbricking tools](https://forum.xda-developers.com/oneplus-5t/how-to/op5t-collection-unbrick-tools-t3898890)
+# Useful Tools for OnePlus5T
+- [Unbricking tools](https://forum.xda-developers.com/oneplus-5t/how-to/op5t-collection-unbrick-tools-t3898890)
 - [Official TWRP Recovery That Didn't Work](https://twrp.me/oneplus/oneplus5-5t.html)
 - [Codeworkx Unofficial TWRP Recovery](https://forum.xda-developers.com/oneplus-5t/development/recovery-twrp-3-2-1-0-oreo-8-0-8-1-t3729673)
 - [OnePlus 5T Official Stock Images](https://www.oneplus.com/uk/support/softwareupgrade/details?code=PM1574156155944)
