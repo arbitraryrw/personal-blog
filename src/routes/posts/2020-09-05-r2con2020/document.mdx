@@ -258,7 +258,7 @@ The `fcn.00401b10` function is getting the current system time and parsing the m
 └           0x00401b44      c3             ret
 ```
 
-With that in mind, it looks like this functional call can be patched out completely statically. I replaced the function with an instruction to populate the `eax` ([accumulator](https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture)) register with the expected value. I seek to the offset of the function at `0x004018c`, verify my assembly using the `pa` print assembled command, and then write the intruction using the `wa` write assembled command.
+With that in mind, it looks like this function call can be patched out completely statically. I replaced the function with an instruction to populate the `eax` ([accumulator](https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture)) register with the expected value. I seek to the offset of the function at `0x004018c`, verify my assembly using the `pa` print assembled command, and then write the instruction using the `wa` write assembled command.
 
 ```nasm
 [0x004018b0]> s 0x004018c
