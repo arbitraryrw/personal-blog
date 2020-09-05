@@ -1,0 +1,699 @@
+import styles from './document.module.css'
+
+import sha256OnlineDecode from './imgs/sha256_online_decode.png'
+import duplicateHashPins from './imgs/duplicate_hash_pins.png'
+
+<div className={styles["blogBody"]}>
+
+# Introduction
+[R2con](https://rada.re/con/2020/) is a yearly conference about [radare2](https://rada.re/r/), a multi-platform, open-source, reverse engineering framework. As part of the conference they host a CTF. This year the CTF consisted of fourteen challenges across three levels: easy, medium, and hard. More details can be found [here](https://rada.re/con/2020/#CTF). This post goes into detail on solving a medium level challenge that I found particularly interesting, Cyberlock. The challenge boldly claims to be: 
+
+_“The world's only quantum, military-grade, agile, blockchain backed, hardened, bullet-proof 12-pin digital cryptographic cyber lock”_.
+
+As the description suggests, it is a 12-pin digital lock that requires 12 separate keys to unlock the flag. The challenge is an unobfuscated stripped x86 binary that requires some creative problem solving. This post documents the journey of solving this challenge, mistakes and all.
+
+## Background
+I have been using [Radare2](https://rada.re/r/) sporadically for the past two years in combintation with other disassemblers / decompilers as part of my reversing toolkit. I particularly enjoy scripting with R2 using [R2pipe](https://radare.gitbooks.io/radare2book/content/scripting/r2pipe.html) as it provides a quick and convenient interface. Unfortunately, I rarely get the opportunity to use R2 as my primary reversing tool because of time constraints. Last r2con, in 2019, I wrote a blog post on solving a CTF challenge called "Land of Ecodelia" available [here](https://nikola.dev/posts/2019-09-10/r2con2019). This was my first time using R2 as my primary tool from end to end. Since then I’ve been trying to use R2 more when I can.
+
+# Walk-through
+
+Instead of breaking this down into logical sections, such as static / dynamic analysis, I’ve decided to walk-through my step by step approach to solving the challenge. The rationale behind this is to provide an accurate representation of how I approached the problem. Reversing in my experience is a very iterative process and understanding why a problem was solved in a certain way is really interesting.
+
+### Initial Analysis
+After downloading the challenge, the first step is to run the binary. Unfortunately in this case the challenge is rate limited according to the error message below. Apparently the binary can only be unlocked once per hour at 3 minutes past the hour. The next step was to first bypass this _feature_ to speed up the process.
+
+```
+➜ ./Cyberlock 
+[i] R2conCTF 2020 - CyberLock 1.3.3.7-alpha
+
+     .--------.
+    / .------. \
+   / /        \ \
+   | |        | |
+  _| |________| |_
+.' |_|        |_| '.
+'._____ ____ _____.'
+|     .'____'.     |
+'.__.'.'    '.'.__.'
+'.__  |!R2Con|  __.'
+|   '.'.____.'.'   |
+'.____'.____.'____.'
+'.________________.'
+
+[i] The r2con Cyberlock is the world's only quantum, military-grade, agile, blockchain backed, hardened, bullet-proof 12-pin digital cryptographic cyber lock.
+[i] Hackers will never make it past the first pin!!!!
+
+[!] Oh... we forgot to tell you that this secure lock can only be unlocked once per hour - ha ha ha! Come back at 3 minutes past the hour.
+Exiting...
+```
+I then loaded the challenge into R2 and started searching for any interesting strings using the `iz` command. I found a few unusual 128 character length strings but nothing obvious. In addition, I didn’t see anything resembling a flag so I needed to dig deeper. The next step is to look at the high level control flow of binary, I started by listing the functions in the binary.
+
+```nasm
+➜ r2 CyberLock 
+ -- Default scripting languages are NodeJS and Python.
+[0x004011c0]> aaa
+[x] Analyze all flags starting with sym. and entry0 (aa)
+[x] Analyze function calls (aac)
+...
+[0x004011c0]> afl
+0x004011c0    1 42           entry0
+0x00401030    1 6            sym.imp.g_free
+0x00401040    1 6            sym.imp.printf
+0x00401050    1 6            sym.imp.memset
+0x00401060    1 6            sym.imp.strncmp
+0x00401070    1 6            sym.imp.malloc
+0x00401080    1 6            sym.imp.fopen
+0x00401090    1 6            sym.imp.g_string_ascii_up
+0x004010a0    1 6            sym.imp.EVP_CIPHER_CTX_ctrl
+0x004010b0    1 6            sym.imp.EVP_DecryptInit_ex
+0x004010c0    1 6            sym.imp.g_string_new
+0x004010d0    1 6            sym.imp.strlen
+0x004010e0    1 6            sym.imp.__ctype_b_loc
+0x004010f0    1 6            sym.imp.sprintf
+0x00401100    1 6            sym.imp.EVP_DecryptFinal_ex
+0x00401110    1 6            sym.imp.g_compute_checksum_for_string
+0x00401120    1 6            sym.imp.strcat
+0x00401130    1 6            sym.imp.EVP_CIPHER_CTX_new
+0x00401140    1 6            sym.imp.EVP_aes_256_gcm
+0x00401150    1 6            sym.imp.strcpy
+0x00401160    1 6            sym.imp.EVP_CIPHER_CTX_free
+0x00401170    1 6            sym.imp.g_file_get_contents
+0x00401180    1 6            sym.imp.localtime
+0x00401190    1 6            sym.imp.EVP_DecryptUpdate
+0x004011a0    1 6            sym.imp.EVP_EncryptInit_ex
+0x004011b0    1 6            sym.imp.time
+0x004018b0    9 214          main
+0x004012a0    5 114  -> 51   entry.init0
+0x00401270    3 33   -> 28   entry.fini0
+0x00401200    4 33   -> 31   fcn.00401200
+0x004012b0    1 327          fcn.004012b0
+0x00401400    1 201          fcn.00401400
+0x00401990    1 374          fcn.00401990
+0x004014d0   19 986          fcn.004014d0
+0x00401000    3 23           fcn.00401000
+```
+
+The challenge contains symbols relating to Crypto functionality, however, this isn't really important at this stage. I decided to start at the `main` function and work my way down.
+
+```nasm
+[0x004018b0]> s main
+[0x004018b0]> pdf
+            ; DATA XREF from entry0 @ 0x4011dd
+┌ 214: int main (int argc, char **argv, char **envp);
+│           ; var int64_t var_34h @ rbp-0x34
+│           ; var int64_t var_30h @ rbp-0x30
+│           ; var uint32_t var_2ch @ rbp-0x2c
+│           ; var int64_t var_28h @ rbp-0x28
+│           ; var file*var_20h @ rbp-0x20
+│           ; var char *filename @ rbp-0x18
+│           ; var int64_t var_10h @ rbp-0x10
+│           ; var uint32_t var_8h @ rbp-0x8
+│           ; var int64_t var_4h @ rbp-0x4
+│           0x004018b0      55             push rbp
+│           0x004018b1      4889e5         mov rbp, rsp
+│           0x004018b4      4883ec40       sub rsp, 0x40
+│           0x004018b8      c745fc000000.  mov dword [var_4h], 0
+│           0x004018bf      e8cc000000     call fcn.00401990
+│           0x004018c4      e847020000     call fcn.00401b10
+│           0x004018c9      8945f8         mov dword [var_8h], eax
+│           0x004018cc      837df803       cmp dword [var_8h], 3
+│       ┌─< 0x004018d0      0f8594000000   jne 0x40196a
+│       │   0x004018d6      48c745f00000.  mov qword [var_10h], 0
+│       │   0x004018de      48b8fd264000.  movabs rax, str.tmp_masterkey.in ; 0x4026fd ; "/tmp/masterkey.in"
+│       │   0x004018e8      488945e8       mov qword [filename], rax
+│       │   0x004018ec      488b7de8       mov rdi, qword [filename]   ; const char *filename
+│       │   0x004018f0      48be0f274000.  movabs rsi, 0x40270f        ; "r" ; const char *mode
+│       │   0x004018fa      e881f7ffff     call sym.imp.fopen          ; file*fopen(const char *filename, const char *mode)
+│       │   0x004018ff      488945e0       mov qword [var_20h], rax
+│       │   0x00401903      48837de000     cmp qword [var_20h], 0
+│      ┌──< 0x00401908      0f8447000000   je 0x401955
+│      ││   0x0040190e      31c0           xor eax, eax
+│      ││   0x00401910      89c2           mov edx, eax
+│      ││   0x00401912      488b7de8       mov rdi, qword [filename]
+│      ││   0x00401916      488d75d8       lea rsi, [var_28h]
+│      ││   0x0040191a      488d4df0       lea rcx, [var_10h]
+│      ││   0x0040191e      e84df8ffff     call sym.imp.g_file_get_contents
+│      ││   0x00401923      8945d4         mov dword [var_2ch], eax
+│      ││   0x00401926      837dd400       cmp dword [var_2ch], 0
+│     ┌───< 0x0040192a      0f8420000000   je 0x401950
+│     │││   0x00401930      48bf11274000.  movabs rdi, str.i__Procesing_input_code... ; 0x402711 ; "[i] Procesing input code...\n" ; const char *format
+│     │││   0x0040193a      b000           mov al, 0
+│     │││   0x0040193c      e8fff6ffff     call sym.imp.printf         ; int printf(const char *format)
+│     │││   0x00401941      488b7dd8       mov rdi, qword [var_28h]    ; int64_t arg1
+│     │││   0x00401945      8b75f8         mov esi, dword [var_8h]     ; int64_t arg2
+│     │││   0x00401948      8945d0         mov dword [var_30h], eax
+│     │││   0x0040194b      e880fbffff     call fcn.004014d0
+│     │││   ; CODE XREF from main @ 0x40192a
+│    ┌└───> 0x00401950      e910000000     jmp 0x401965
+│    │ ││   ; CODE XREF from main @ 0x401908
+│    │ └──> 0x00401955      488b3c25f040.  mov rdi, qword [0x4040f0]   ; [0x4040f0:8]=0x402004 str.2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6454349E422F05297191EAD13E21D3DB520E5ABEF52055E4964B82FB213F593A1 ; int64_t arg1
+│    │  │   0x0040195d      8b75f8         mov esi, dword [var_8h]     ; int64_t arg2
+│    │  │   0x00401960      e86bfbffff     call fcn.004014d0
+│    │  │   ; CODE XREF from main @ 0x401950
+│    └─┌──< 0x00401965      e914000000     jmp 0x40197e
+│      ││   ; CODE XREF from main @ 0x4018d0
+│      │└─> 0x0040196a      48bf2e274000.  movabs rdi, str.Oh..._we_forgot_to_tell_you_that_this_secure_lock_can_only_be_unlocked_once_per_hour___ha_ha_ha__Come_back_at_3_minutes_past_the_hour.__Exiting... ; 0x40272e ; "[!] Oh... we forgot to tell you that this secure
+ lock can only be unlocked once per hour - ha ha ha! Come back at 3 minutes past the hour.\nExiting...\n" ; const char *format
+│      │    0x00401974      b000           mov al, 0
+│      │    0x00401976      e8c5f6ffff     call sym.imp.printf         ; int printf(const char *format)
+│      │    0x0040197b      8945cc         mov dword [var_34h], eax
+│      │    ; CODE XREF from main @ 0x401965
+│      └──> 0x0040197e      31c0           xor eax, eax
+│           0x00401980      4883c440       add rsp, 0x40
+│           0x00401984      5d             pop rbp
+└           0x00401985      c3             ret
+```
+
+At a glance it looks like it is running a function, verifying the return value is `3` at offset `0x004018cc`. If not it throws an error message saying the lock only accepts input at three minutes past the hour. 
+
+If it is three minutes past the hour, it opens and reads from the file `/tmp/masterkey.in` at offset `0x004018fa` using `fopen`. The result of this function is then stored in the `rax` register and then validated at offset `0x00401908`, docs for `fopen` can be found [here](https://man7.org/linux/man-pages/man3/fopen.3.html).
+
+If the contents are null, a static value is sent to `fcn.004014d0` at offset `0x00401960`, along with the value stored in `dword [var_8h]` as the second parameter. Otherwise, the contents of the file are then extracted at offset `0x0040191e` and null checked at offset `0x0040192a`. The contents of the file are then passed as a parameter to `fcn.004014d0` at offset `0x0040194b`, the same `dword [var_8h]` value is used as the second parameter.
+
+### Bypassing the Rate Limit Control
+
+With this information I began trying to progress through the challenge. I re-opened the binary in write mode by using the `-w` flag with r2 and attempted to patch the `jne` to `je` at offset `0x004018d0`.
+
+```nasm
+[0x004011c0]> s main
+[0x004018b0]> pdf
+...
+│           0x004018b0      55             push rbp
+│           0x004018b1      4889e5         mov rbp, rsp
+│           0x004018b4      4883ec40       sub rsp, 0x40
+│           0x004018b8      c745fc000000.  mov dword [var_4h], 0
+│           0x004018bf      e8cc000000     call fcn.00401990
+│           0x004018c4      e847020000     call fcn.00401b10
+│           0x004018c9      8945f8         mov dword [var_8h], eax
+│           0x004018cc      837df803       cmp dword [var_8h], 3
+│       ┌─< 0x004018d0      0f8594000000   jne 0x40196a
+│       │   0x004018d6      48c745f00000.  mov qword [var_10h], 0
+...
+[0x004018b0]> s 0x004018d0
+[0x004018b0]> wa je 0x40196a
+```
+
+Unforunately, this caused a segmentation fault. I jumped the gun a bit there so I went back to figuring out what was actually going on in more detail.
+
+```
+➜ ./Cyberlock
+[i] R2conCTF 2020 - CyberLock 1.3.3.7-alpha
+
+     .--------.
+    / .------. \
+   / /        \ \
+   | |        | |
+  _| |________| |_
+.' |_|        |_| '.
+'._____ ____ _____.'
+|     .'____'.     |
+'.__.'.'    '.'.__.' 
+'.__  |!R2Con|  __.'
+|   '.'.____.'.'   |
+'.____'.____.'____.'
+'.________________.'
+
+[i] The r2con Cyberlock is the world's only quantum, military-grade, agile, blockchain backed, hardened, bullet-proof 12-pin digital cryptographic cyber lock.
+[i] Hackers will never make it past the first pin!!!!
+
+[1]    1371 segmentation fault (core dumped)  ./Cyberlock
+```
+
+Before the conditional jump the `eax` register, containing the result of the `fcn.00401b10` function, is compared against the value `3`.
+
+```nasm
+...
+│           0x004018bf      e8cc000000     call fcn.00401990
+│           0x004018c4      e847020000     call fcn.00401b10
+│           0x004018c9      8945f8         mov dword [var_8h], eax
+│           0x004018cc      837df803       cmp dword [var_8h], 3
+...
+```
+
+The `fcn.00401b10` function is getting the current system time and parsing the minute value from the return struct found [here](https://linux.die.net/man/3/localtime).
+
+```nasm
+[0x004018b0]> pdf @ fcn.00401b10
+            ; CALL XREF from main @ 0x4018c4
+┌ 53: fcn.00401b10 ();
+│           ; var time_t var_20h @ rbp-0x20
+│           ; var int64_t var_14h @ rbp-0x14
+│           ; var tm*var_10h @ rbp-0x10
+│           ; var time_t *timer @ rbp-0x8
+│           0x00401b10      55             push rbp
+│           0x00401b11      4889e5         mov rbp, rsp
+│           0x00401b14      4883ec20       sub rsp, 0x20
+│           0x00401b18      488d7df8       lea rdi, [timer]            ; time_t *timer
+│           0x00401b1c      e88ff6ffff     call sym.imp.time           ; time_t time(time_t *timer)
+│           0x00401b21      488d7df8       lea rdi, [timer]            ; const time_t *timer
+│           0x00401b25      488945e0       mov qword [var_20h], rax
+│           0x00401b29      e852f6ffff     call sym.imp.localtime      ; tm*localtime(const time_t *timer)
+│           0x00401b2e      488945f0       mov qword [var_10h], rax
+│           0x00401b32      488b45f0       mov rax, qword [var_10h]
+│           0x00401b36      8b4804         mov ecx, dword [rax + 4]
+│           0x00401b39      894dec         mov dword [var_14h], ecx
+│           0x00401b3c      8b45ec         mov eax, dword [var_14h]
+│           0x00401b3f      4883c420       add rsp, 0x20
+│           0x00401b43      5d             pop rbp
+└           0x00401b44      c3             ret
+```
+
+With that in mind, it looks like this functional call can be patched out completely statically. I replaced the function with an instruction to populate the `eax` ([accumulator](https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture)) register with the expected value. I seek to the offset of the function at `0x004018c`, verify my assembly using the `pa` print assembled command, and then write the intruction using the `wa` write assembled command.
+
+```nasm
+[0x004018b0]> s 0x004018c
+[0x004018c]> pa mov eax, 3
+b903000000
+[0x004018c]> wa mov eax, 3
+[0x004018c]> pdf
+...
+│           0x004018bf      e8cc000000     call fcn.00401990
+│           0x004018c4      b803000000     mov eax, 3
+│           0x004018c9      8945f8         mov dword [var_8h], eax
+...
+```
+
+This time the patch was successful in bypassing the rate limit restriction. Running the binary again reveals that I can now submit pin entries at any time.
+
+```
+➜ ./Cyberlock
+[i] R2conCTF 2020 - CyberLock 1.3.3.7-alpha
+
+     .--------.
+    / .------. \
+   / /        \ \
+   | |        | |
+  _| |________| |_
+.' |_|        |_| '.
+'._____ ____ _____.'
+|     .'____'.     |
+'.__.'.'    '.'.__.'
+'.__  |!R2Con|  __.'
+|   '.'.____.'.'   | 
+'.____'.____.'____.'
+'.________________.'
+
+[i] The r2con Cyberlock is the world's only quantum, military-grade, agile, blockchain backed, hardened, bullet-proof 12-pin digital cryptographic cyber lock.
+[i] Hackers will never make it past the first pin!!!!
+
+[i] Pin 1:      2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6 - BINGO!!!
+[i] Pin 2:      454349E422F05297191EAD13E21D3DB520E5ABEF52055E4964B82FB213F593A1 - WRONG!!!
+[i] WARNING - This unlock attempt has been logged and @pancake has been notified!!!
+
+[i] 1/12 pins correct.
+```
+
+### Analysing the Pin Functionality
+
+From the initial analysis I recognised the Pin 1 value from the main function dissasembly. That value was populated at offset `0x00401955` as seen below.
+
+```nasm
+[0x004018c]> pdf @ main
+...
+│    │ └──> 0x00401955      488b3c25f040.  mov rdi, qword [0x4040f0]   ; [0x4040f0:8]=0x402004 str.2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6454349E422F05297191EAD13E21D3DB520E5ABEF52055E4964B82FB213F593A1 ; int64_t arg1
+...
+
+```
+A quick grep reveals that the second half of this 128 character value is treated as Pin 2, therefore it is safe to assume that each pin is 64 characters in length. I presume this was placed here as a clue / to provide context.
+
+Using the information gathered so far, I created a file containing these values in `/tmp/masterkey.in` and ran the binary again. This produced similar output, however, I could see a new message `[i] Procesing input code...` as seen below.
+
+```
+➜ ./CyberLock 
+[i] R2conCTF 2020 - CyberLock 1.3.3.7-alpha
+
+     .--------.
+    / .------. \
+   / /        \ \
+   | |        | |
+  _| |________| |_
+.' |_|        |_| '.
+'._____ ____ _____.'
+|     .'____'.     |
+'.__.'.'    '.'.__.'
+'.__  |!R2Con|  __.'
+|   '.'.____.'.'   |
+'.____'.____.'____.'
+'.________________.'
+
+[i] The r2con Cyberlock is the world's only quantum, military-grade, agile, blockchain backed, hardened, bullet-proof 12-pin digital cryptographic cyber lock.
+[i] Hackers will never make it past the first pin!!!!
+
+[i] Procesing input code...
+[i] Pin 1:      2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6 - BINGO!!!
+[i] Pin 2:      454349E422F05297191EAD13E21D3DB520E5ABEF52055E4964B82FB213F593A1 - WRONG!!!
+[i] WARNING - This unlock attempt has been logged and @pancake has been notified!!!
+
+[i] 1/12 pins correct.
+```
+
+This indicates that the binary is now reading the pin values from a file as the condition at offset `0x0040192a` is no longer satisified. Meaning the binary is able to find the file and read the contents.
+
+```nasm
+...
+│      ││   0x00401926      837dd400       cmp dword [var_2ch], 0
+│     ┌───< 0x0040192a      0f8420000000   je 0x401950
+│     │││   0x00401930      48bf11274000.  movabs rdi, str.i__Procesing_input_code... ; 0x402711 ; "[i] Procesing input code...\n" ; const char *format
+│     │││   0x0040193a      b000           mov al, 0
+...
+```
+
+The next step is to figure out what is happening in the `fcn.004014d0` function as this is clearly handling the pin values in some way. The dissasembly of this function is significantly harder to follow so I decided to work off of the decompiled code. For convinience I used the Ghidra decompiler using [r2ghidra-dec](https://github.com/radareorg/r2ghidra-dec) plugin. The output of this can be seen below:
+
+```c
+[0x004018c]> pdg
+void FUN_004014d0(byte *param_1,uint param_2)
+
+{
+  int iVar1;
+  ushort **ppuVar2;
+  size_t sVar3;
+  undefined8 uVar4;
+  char **ppcVar5;
+  long lVar6;
+  ulong uVar7;
+  char local_70b [3];
+  char local_708 [128];
+  char local_688 [1548];
+  uint local_7c;
+  long local_78;
+  uint local_6c;
+  byte local_68 [64];
+  undefined uStack40;
+  undefined8 local_20;
+  uint local_14;
+  byte *local_10;
+  
+  local_20 = 0x40;
+  local_6c = 1;
+  local_78 = 0;
+  local_7c = 0;
+  local_14 = param_2;
+  local_10 = param_1;
+  memset(local_688,0,0x601);
+  do {
+    if (*local_10 == 0) {
+LAB_004017fb:
+      if (local_7c == 0xc) {
+        printf("\n[i] %s12%s/12 pins correct.\n",&DAT_004025b9,&DAT_004025bf);
+        printf("[i] Welcome back %s@pancake%s, using your master key: %s\n",&DAT_004025b9,
+               &DAT_004025bf,local_688);
+        FUN_00401400(local_688);
+      }
+      else {
+        printf("\n[i] %s%d%s/12 pins correct.\n",&DAT_00402628,(ulong)local_7c,&DAT_004025bf);
+      }
+      return;
+    }
+    if (0xc < (int)local_6c) {
+      printf("[!] stack-based pin overflow!!!\n");
+      goto LAB_004017fb;
+    }
+    ppuVar2 = __ctype_b_loc();
+    if (((*ppuVar2)[(int)(uint)*local_10] & 0x2000) == 0) {
+      lVar6 = local_78 + 1;
+      local_68[local_78] = *local_10;
+      local_78 = lVar6;
+      if (lVar6 == 0x40) {
+        uStack40 = 0;
+        local_78 = 0;
+        strcpy(local_708,(char *)local_68);
+        strcat(local_708,"_");
+        memset(local_70b,0,3);
+        sprintf(local_70b,"%d",(ulong)local_14);
+        strcat(local_708,local_70b);
+        strcat(local_708,"_");
+        strcat(local_708,PTR_s_r2con2020_004040f8);
+        sVar3 = strlen(local_708);
+        uVar4 = g_compute_checksum_for_string(3,local_708,sVar3);
+        uVar4 = g_string_new(uVar4);
+        ppcVar5 = (char **)g_string_ascii_up(uVar4);
+        iVar1 = strncmp((&PTR_s_D9259A378FC0EA75C1828369059854DE_00404100)[(int)(local_6c - 1)],
+                        *ppcVar5,0x80);
+        if (iVar1 != 0) {
+          uVar7 = (ulong)local_6c;
+          local_6c = local_6c + 1;
+          printf("[i] Pin %d:\t%s - %sWRONG!!!%s\n",uVar7,local_68,&DAT_00402628,&DAT_004025bf);
+          printf(
+                 "[i] %sWARNING - This unlock attempt has been logged and @pancake has beennotified!!!%s\n"
+                 ,&DAT_00402628,&DAT_004025bf);
+          goto LAB_004017fb;
+        }
+        uVar7 = (ulong)local_6c;
+        local_6c = local_6c + 1;
+        printf("[i] Pin %d:\t%s - %sBINGO!!!%s\n",uVar7,local_68,&DAT_004025b9,&DAT_004025bf);
+        strcat(local_688,(char *)local_68);
+        local_7c = local_7c + 1;
+        if (local_7c == 0xc) goto LAB_004017fb;
+      }
+    }
+    local_10 = local_10 + 1;
+  } while( true );
+}
+```
+
+In the decompiled code the first and second parameters of the function are stored in `local_10 ` and `local_14` variables respectively. The first parameter contains the pin values in what looks like an array, and the second parameter contains the value `3`.
+
+The following decompiled snippet takes the pin value in `local_10` and copies it into `local_708` using `strcpy`. The `local_709` value is then concatinated with an underscore, the second parameter stored in `local_14`, another underscore, and finally `r2con2020`.
+
+This is then hashed using `g_compute_checksum_for_string`. The documentation [here](https://docs.factorcode.org/content/word-g_compute_checksum_for_string,glib.ffi.html) highlights that the first parameter is the checksum type, the second is the string to hash, and the third is the string length. After some further digging, a [CheckSumType](https://developer.gnome.org/glibmm/stable/group__glibmmEnums.html#ga5d1c13a9d5c34bff7dd1e74654f282eb) value of 3 indicates it is using the `SHA-512` algorithm.
+
+```c
+...
+local_68[local_78] = *local_10;
+local_78 = lVar6;
+if (lVar6 == 0x40) {
+uStack40 = 0;
+local_78 = 0;
+strcpy(local_708,(char *)local_68);
+strcat(local_708,"_");
+memset(local_70b,0,3);
+sprintf(local_70b,"%d",(ulong)local_14);
+strcat(local_708,local_70b);
+strcat(local_708,"_");
+strcat(local_708,PTR_s_r2con2020_004040f8);
+sVar3 = strlen(local_708);
+uVar4 = g_compute_checksum_for_string(3,local_708,sVar3);
+uVar4 = g_string_new(uVar4);
+...
+```
+
+Finally, after all of this the hash is then converted to upper case and compared against a value in an array. If the value matches, a success message is printed and the loop continues onto the next pin. If not, an error message is printed.
+
+```c
+ppcVar5 = (char **)g_string_ascii_up(uVar4);
+iVar1 = strncmp((&PTR_s_D9259A378FC0EA75C1828369059854DE_00404100)[(int)(local_6c - 1)],
+                *ppcVar5,0x80);
+```
+
+To dig a bit deeper into the hash values, I dissasmbled the function and searched for any references to `strncmp`. As seen below, there is a hit at offset `0x004016d2`, the first parameter to this function is populated at offset `0x004016d2`, and the array containing the hashes is at offset `0x404100`.
+
+```nasm
+[0x004018b0]> s fcn.004014d0
+[0x004014d0]> pdf
+...
+│   ││││╎   0x004016cf      4963c0         movsxd rax, r8d
+│   ││││╎   0x004016d2      488b3cc50041.  mov rdi, qword [rax*8 + 0x404100] ; const char *s1
+│   ││││╎   0x004016da      488b85e8f8ff.  mov rax, qword [var_718h]
+│   ││││╎   0x004016e1      488b30         mov rsi, qword [rax]        ; const char *s2
+│   ││││╎   0x004016e4      e877f9ffff     call sym.imp.strncmp        ; int strncmp(const char *s1, const char *s2, size_t n)
+│   ││││╎   0x004016e9      8985e4f8ffff   mov dword [var_71ch], eax
+│   ││││╎   0x004016ef      83bde4f8ffff.  cmp dword [var_71ch], 0
+...
+```
+
+Printing the hexdump values at this offset highlights that this contains an array of pointers.
+
+```clike
+[0x004014d0]> px @ 0x404100
+- offset -   0 1  2 3  4 5  6 7  8 9  A B  C D  E F  0123456789ABCDEF
+0x00404100  8f20 4000 0000 0000 1021 4000 0000 0000  . @......!@.....
+0x00404110  9121 4000 0000 0000 1222 4000 0000 0000  .!@......"@.....
+0x00404120  9322 4000 0000 0000 1423 4000 0000 0000  ."@......#@.....
+0x00404130  1222 4000 0000 0000 9523 4000 0000 0000  ."@......#@.....
+0x00404140  1624 4000 0000 0000 9724 4000 0000 0000  .$@......$@.....
+0x00404150  1825 4000 0000 0000 9322 4000 0000 0000  .%@......"@.....
+0x00404160  0000 0000 0000 0000 ffff ffff ffff ffff  ................
+```
+
+Endianness makes this a bit more confusing, the first index of the array indicated at `8f204000` is actually `0040208f`. Printing these values reveals the hash values as seen below.
+
+```nasm
+[0x004014d0]> pd 12 @  0x0040208f
+;-- str.D9259A378FC0EA75C1828369059854DEF76F91CABD01B56EF548C7ABA6441D59DD2DB9E51BD70C457179A123D53138F88132B29C691A9671F6C80E41E7D682A4:
+0x0040208f     .string "D9259A378FC0EA75C1828369059854DEF76F91CABD01B56EF548C7ABA6441D59DD2DB9E51BD70C457179A123D53138F88132B29C691A9671F6C80E41E7D682A4" ; len=129
+;-- str.3F675784DABBC1330806CB4D5FE67860C25E103B75EB7B22821B2D75264B60C4D2E042A1726E1B85E3936A2A95E835E92FEFAC2C2E34A249109D98AED3962C71:
+0x00402110     .string "3F675784DABBC1330806CB4D5FE67860C25E103B75EB7B22821B2D75264B60C4D2E042A1726E1B85E3936A2A95E835E92FEFAC2C2E34A249109D98AED3962C71" ; len=129
+;-- str.BD605F0A10170EC1F7610BCF696C518AAB31C235CCF47866A71C332368BFE8B7E9FE4E3907B3CD37F111B40EEFFE89287C25033A41369A3236751474AD522537:
+0x00402191     .string "BD605F0A10170EC1F7610BCF696C518AAB31C235CCF47866A71C332368BFE8B7E9FE4E3907B3CD37F111B40EEFFE89287C25033A41369A3236751474AD522537" ; len=129
+;-- str.B8CA8A22501EAB44AD44E6EB2F87791CA69955BFFC025988418866BDD8A1EAABA97F630A705D68B26370E49DAD9DE65AB478117C4289FFC240A8C85308D116A1:
+0x00402212     .string "B8CA8A22501EAB44AD44E6EB2F87791CA69955BFFC025988418866BDD8A1EAABA97F630A705D68B26370E49DAD9DE65AB478117C4289FFC240A8C85308D116A1" ; len=129
+;-- str.0694F2776E101C72092994B2F125973CBD3A608B3BA17CF8795DDDEEDE6773E0DE8D832EAE4EE3FF8C748FD6BDBC1BF843081CC6AEEFB09B1C908AD484382884:
+0x00402293     .string "0694F2776E101C72092994B2F125973CBD3A608B3BA17CF8795DDDEEDE6773E0DE8D832EAE4EE3FF8C748FD6BDBC1BF843081CC6AEEFB09B1C908AD484382884" ; len=129
+;-- str.F9B4F710E8ADC5D4A32779A865396B019A630E2B1DB475F0F1656BC195ED2E0171932C9629DE5417F5C2D96FECC4B89107C9E28477513F98D5147391DF374C3C:
+0x00402314     .string "F9B4F710E8ADC5D4A32779A865396B019A630E2B1DB475F0F1656BC195ED2E0171932C9629DE5417F5C2D96FECC4B89107C9E28477513F98D5147391DF374C3C" ; len=129
+;-- str.7280E46538FE2158921FA20E7A835E9F4900E8AFDA73E1D1EE03472E0B34D59AC28ABE964652B6EC8DF1B44D3F1B90A7684D470A191BB446FB2149918E69DE38:
+0x00402395     .string "7280E46538FE2158921FA20E7A835E9F4900E8AFDA73E1D1EE03472E0B34D59AC28ABE964652B6EC8DF1B44D3F1B90A7684D470A191BB446FB2149918E69DE38" ; len=129
+;-- str.F08DF5E5DFDACE8892F03B4475263D72D6999DCC499C741028935D7D167222086F5FB63C793C20BA02E56AB74E901B1E66D178206E91B469F6055E63EE824D7F:
+0x00402416     .string "F08DF5E5DFDACE8892F03B4475263D72D6999DCC499C741028935D7D167222086F5FB63C793C20BA02E56AB74E901B1E66D178206E91B469F6055E63EE824D7F" ; len=129
+;-- str.9D9A2B793485D2ADF818DB5DF1D97CD1072F826845940780ECA50B623F8D931DC9533AF77DF2B811645B8B852670188A17736E8A536F672D5639EA40F2D1FC40:
+0x00402497     .string "9D9A2B793485D2ADF818DB5DF1D97CD1072F826845940780ECA50B623F8D931DC9533AF77DF2B811645B8B852670188A17736E8A536F672D5639EA40F2D1FC40" ; len=129
+;-- str.4AC1807EC58C1BD56D177E3F409FBD0FBCDE7D97F9F8A71469FD92817BB866B4D71A0DF10EB501AF6CE4439861E46B89473555B08874CEBA33312AD3495E84F2:
+0x00402518     .string "4AC1807EC58C1BD56D177E3F409FBD0FBCDE7D97F9F8A71469FD92817BB866B4D71A0DF10EB501AF6CE4439861E46B89473555B08874CEBA33312AD3495E84F2" ; len=129
+; DATA XREF from fcn.004012b0 @ 0x4012ca
+;-- str.000000000000:
+0x00402599     .string "000000000000" ; len=13
+; DATA XREF from fcn.00401400 @ 0x40149b
+;-- str.i__Flag:__s_s_s:
+0x004025a6     .string "\n[i] Flag: %s%s%s\n" ; len=19
+```
+
+Interestingly, I assumed there would be twelve distinct values hence why I printed twelve instructions above, however, it looks like some of the hashes are reused. So for example pin four is used again as pin seven, and pin five is used again as pin twelve. I verified this by taking a closer look at the hexdump values in the array of pointers that point to the hash values.
+
+<img src={duplicateHashPins} className={styles["screenshot"]} alt="Duplicate pin hashes" />
+
+To confirm my hypothesis I constructed the first known pin using the proposed format of `pin_3_r2con2020`. Since the first pin is given for free, the first pin hash should equal the sha512 of the following input.
+
+```
+2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6_3_r2con2020
+```
+
+The upper case value of this opeation matches the hash at offset `0x0040208f`.
+
+### Deciphering the Pin Values
+
+So at this point I have the hashes, I know how the final hashes generated and salted but I don't know anything about the pin values themselves. After digging further into the binary I didn't find any further clues and started doing some guess work. 
+
+Based off of the first pin I know that the pins are probably 64 characters long. I know that sha256 hashes are 256 bits long, 4 bits are enough to encode each character, so 64 hex characters matches the profile. I found the following "SHA-256 Decoder" [here](https://www.dcode.fr/sha256-hash) and attempted to _"decode"_ the hash.
+
+<img src={sha256OnlineDecode} className={styles["screenshot"]} alt="Online sha256 decoder" />
+
+This found the hash contained the value `c`. I repeated this step on the second pin that is provded and the hash contained the value `r`. I confirmed this work flow by hasing the value `c` using sha256, converting the output to upper case, appending `_3_r2con2020` to the output, hashing this using sha512, and then converting it to upper case again. The output of this work flow produced an identical hash value to the first pin.
+
+### Generating the Hashed Pins
+
+Now that this worked, I decided to try and script this to generate the hashes and compare them against the expected hashes from the binary. The working script is available [here](https://gist.github.com/arbitraryrw/0e500bf82b48e85f35393fd17c72190c).
+
+```python
+[INFO] we have 12 hashy boys
+[INFO] Solving has 0
+        Match found for d9259a378fc0ea75c1828369059854def76f91cabd01b56ef548c7aba6441d59dd2db9e51bd70c457179a123d53138f88132b29c691a9671f6c80e41e7d682a4!
+        Key 0 char is c, key is: 2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6
+[INFO] Solving has 1
+        Match found for 3f675784dabbc1330806cb4d5fe67860c25e103b75eb7b22821b2d75264b60c4d2e042a1726e1b85e3936a2a95e835e92fefac2c2e34a249109d98aed3962c71!
+        Key 1 char is h, key is: AAA9402664F1A41F40EBBC52C9993EB66AEB366602958FDFAA283B71E64DB123
+[INFO] Solving has 2
+        Match found for bd605f0a10170ec1f7610bcf696c518aab31c235ccf47866a71c332368bfe8b7e9fe4e3907b3cd37f111b40eeffe89287c25033a41369a3236751474ad522537!
+        Key 2 char is a, key is: CA978112CA1BBDCAFAC231B39A23DC4DA786EFF8147C4E72B9807785AFEE48BB
+[INFO] Solving has 3
+        Match found for b8ca8a22501eab44ad44e6eb2f87791ca69955bffc025988418866bdd8a1eaaba97f630a705d68b26370e49dad9de65ab478117c4289ffc240a8c85308d116a1!
+        Key 3 char is o, key is: 65C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D2
+[INFO] Solving has 4
+        Match found for 0694f2776e101c72092994b2f125973cbd3a608b3ba17cf8795dddeede6773e0de8d832eae4ee3ff8c748fd6bdbc1bf843081cc6aeefb09b1c908ad484382884!
+        Key 4 char is s, key is: 043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89
+[INFO] Solving has 5
+        Match found for f9b4f710e8adc5d4a32779a865396b019a630e2b1db475f0f1656bc195ed2e0171932c9629de5417f5c2d96fecc4b89107c9e28477513f98d5147391df374c3c!
+        Key 5 char is M, key is: 08F271887CE94707DA822D5263BAE19D5519CB3614E0DAEDC4C7CE5DAB7473F1
+[INFO] Solving has 6
+        Match found for b8ca8a22501eab44ad44e6eb2f87791ca69955bffc025988418866bdd8a1eaaba97f630a705d68b26370e49dad9de65ab478117c4289ffc240a8c85308d116a1!
+        Key 6 char is o, key is: 65C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D2
+[INFO] Solving has 7
+        Match found for 7280e46538fe2158921fa20e7a835e9f4900e8afda73e1d1ee03472e0b34d59ac28abe964652b6ec8df1b44d3f1b90a7684d470a191bb446fb2149918e69de38!
+        Key 7 char is N, key is: 8CE86A6AE65D3692E7305E2C58AC62EEBD97D3D943E093F577DA25C36988246B
+[INFO] Solving has 8
+        Match found for f08df5e5dfdace8892f03b4475263d72d6999dcc499c741028935d7d167222086f5fb63c793c20ba02e56ab74e901b1e66d178206e91b469f6055e63ee824d7f!
+        Key 8 char is K, key is: 86BE9A55762D316A3026C2836D044F5FC76E34DA10E1B45FEEE5F18BE7EDB177
+[INFO] Solving has 9
+        Match found for 9d9a2b793485d2adf818db5df1d97cd1072f826845940780eca50b623f8d931dc9533af77df2b811645b8b852670188a17736e8a536f672d5639ea40f2d1fc40!
+        Key 9 char is e, key is: 3F79BB7B435B05321651DAEFD374CDC681DC06FAA65E374E38337B88CA046DEA
+[INFO] Solving has 10
+        Match found for 4ac1807ec58c1bd56d177e3f409fbd0fbcde7d97f9f8a71469fd92817bb866b4d71a0df10eb501af6ce4439861e46b89473555b08874ceba33312ad3495e84f2!
+        Key 10 char is y, key is: A1FCE4363854FF888CFF4B8E7875D600C2682390412A8CF79B37D0B11148B0FA
+[INFO] Solving has 11
+        Match found for 0694f2776e101c72092994b2f125973cbd3a608b3ba17cf8795dddeede6773e0de8d832eae4ee3ff8c748fd6bdbc1bf843081cc6aeefb09b1c908ad484382884!
+        Key 11 char is s, key is: 043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89
+[INFO] Complete solution:
+2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6AAA9402664F1A41F40EBBC52C9993EB66AEB366602958FDFAA283B71E64DB123CA978112CA1BBDCAFAC231B39A23DC4DA786EFF8147C4E72B9807785AFEE48BB65C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D2043A718774C5
+72BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF8908F271887CE94707DA822D5263BAE19D5519CB3614E0DAEDC4C7CE5DAB7473F165C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D28CE86A6AE65D3692E7305E2C58AC62EEBD97D3D943E093F577DA25C36988246B86BE9A55762D316A3026C283
+6D044F5FC76E34DA10E1B45FEEE5F18BE7EDB1773F79BB7B435B05321651DAEFD374CDC681DC06FAA65E374E38337B88CA046DEAA1FCE4363854FF888CFF4B8E7875D600C2682390412A8CF79B37D0B11148B0FA043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89
+```
+
+The precomputed pin key spells out `chaosMoNKeys`. The last step is to copy and paste the pre-computed pins it into the `/tmp/masterkey.in` directory.
+
+```
+➜ cat /tmp/masterkey.in
+2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6
+AAA9402664F1A41F40EBBC52C9993EB66AEB366602958FDFAA283B71E64DB123
+CA978112CA1BBDCAFAC231B39A23DC4DA786EFF8147C4E72B9807785AFEE48BB
+65C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D2
+043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89
+08F271887CE94707DA822D5263BAE19D5519CB3614E0DAEDC4C7CE5DAB7473F1
+65C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D2
+8CE86A6AE65D3692E7305E2C58AC62EEBD97D3D943E093F577DA25C36988246B
+86BE9A55762D316A3026C2836D044F5FC76E34DA10E1B45FEEE5F18BE7EDB177
+3F79BB7B435B05321651DAEFD374CDC681DC06FAA65E374E38337B88CA046DEA
+A1FCE4363854FF888CFF4B8E7875D600C2682390412A8CF79B37D0B11148B0FA
+043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89
+```
+
+Run the `Cyberlock` binary again and verify the challenge is solved:
+
+```
+➜ ./CyberLock
+[i] R2conCTF 2020 - CyberLock 1.3.3.7-alpha
+
+     .--------.
+    / .------. \
+   / /        \ \
+   | |        | |
+  _| |________| |_
+.' |_|        |_| '.
+'._____ ____ _____.'
+|     .'____'.     |
+'.__.'.'    '.'.__.'
+'.__  |!R2Con|  __.'
+|   '.'.____.'.'   |
+'.____'.____.'____.'
+'.________________.'
+
+[i] The r2con Cyberlock is the world's only quantum, military-grade, agile, blockchain backed, hardened, bullet-proof 12-pin digital cryptographic cyber lock.
+[i] Hackers will never make it past the first pin!!!!
+
+[i] Procesing input code...
+[i] Pin 1:      2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6 - BINGO!!!
+[i] Pin 2:      AAA9402664F1A41F40EBBC52C9993EB66AEB366602958FDFAA283B71E64DB123 - BINGO!!!
+[i] Pin 3:      CA978112CA1BBDCAFAC231B39A23DC4DA786EFF8147C4E72B9807785AFEE48BB - BINGO!!!
+[i] Pin 4:      65C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D2 - BINGO!!!
+[i] Pin 5:      043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89 - BINGO!!!
+[i] Pin 6:      08F271887CE94707DA822D5263BAE19D5519CB3614E0DAEDC4C7CE5DAB7473F1 - BINGO!!!
+[i] Pin 7:      65C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D2 - BINGO!!!
+[i] Pin 8:      8CE86A6AE65D3692E7305E2C58AC62EEBD97D3D943E093F577DA25C36988246B - BINGO!!!
+[i] Pin 9:      86BE9A55762D316A3026C2836D044F5FC76E34DA10E1B45FEEE5F18BE7EDB177 - BINGO!!!
+[i] Pin 10:     3F79BB7B435B05321651DAEFD374CDC681DC06FAA65E374E38337B88CA046DEA - BINGO!!!
+[i] Pin 11:     A1FCE4363854FF888CFF4B8E7875D600C2682390412A8CF79B37D0B11148B0FA - BINGO!!!
+[i] Pin 12:     043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89 - BINGO!!!
+
+[i] 12/12 pins correct.
+[i] Welcome back @pancake, using your master key: 2E7D2C03A9507AE265ECF5B5356885A53393A2029D241394997265A1A25AEFC6AAA9402664F1A41F40EBBC52C9993EB66AEB366602958FDFAA283B71E64DB123CA978112CA1BBDCAFAC231B39A23DC4DA786EFF8147C4E72B9807785AFEE48BB65C74C15A686187BB6BBF9958F
+494FC6B80068034A659A9AD44991B08C58F2D2043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF8908F271887CE94707DA822D5263BAE19D5519CB3614E0DAEDC4C7CE5DAB7473F165C74C15A686187BB6BBF9958F494FC6B80068034A659A9AD44991B08C58F2D28CE86A6AE65D3692E7305E2C58AC62EEBD97D3
+D943E093F577DA25C36988246B86BE9A55762D316A3026C2836D044F5FC76E34DA10E1B45FEEE5F18BE7EDB1773F79BB7B435B05321651DAEFD374CDC681DC06FAA65E374E38337B88CA046DEAA1FCE4363854FF888CFF4B8E7875D600C2682390412A8CF79B37D0B11148B0FA043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F
+925D0E52BEAF89
+
+[i] Flag: r2con{StopL0ckPickingY0urNos3}
+```
+
+The flag for this challenge is `r2con{StopL0ckPickingY0urNos3}`.
+
+# Conclusion 
+Cyberlock is a really interesting and creative CTF challenge. The mechanic of making the flag depend on twelve pins is really smart, it forces the attacker to think - I really enjoyed that. Also, I appreciated the attempt to rate limit attackers. It provided a nice entry level problem to teach players how to use r2 practically.
+
+A big thank you to the Radare2 team for organising the conference and to [@hexploitable](https://twitter.com/hexploitable) for writing the challenge. I got in contact with [@hexploitable](https://twitter.com/hexploitable) and they were kind enough to share the challenge source [here](https://gist.github.com/hexploitable/25e1805b832fa3e2c25ba4875ffce2dd).
+
+# Useful References 
+- [Radare2](https://rada.re/r/)
+- [R2con 2020](https://rada.re/con/2020/)
+- [r2ghidra-dec](https://github.com/radareorg/r2ghidra-dec) 
+- [Automated challenge solution](https://gist.github.com/arbitraryrw/0e500bf82b48e85f35393fd17c72190c)
+- [Cyberlock source](https://gist.github.com/hexploitable/25e1805b832fa3e2c25ba4875ffce2dd)
+
+</div>
