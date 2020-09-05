@@ -576,9 +576,9 @@ Since the pin values seem to be a single character, brute-forcing the pin values
 - Sha256 hashes the character
 - Converts the digest to upper case
 - Appends `_3_r2con2020` to the digest
-- Sha512 hashes the concatenated digest 
-- Converts the sha512 to upper case
-- Compares the output against the known pin hash
+- Sha512 hashes the concatenated digest
+- Converts the sha512 digest to upper case
+- Compares the final output against the known pin hash
 - If there is a match, it moves onto the next pin hash
 
 This process is repeated for each pin hash. The working script is available [here](https://gist.github.com/arbitraryrw/0e500bf82b48e85f35393fd17c72190c). As seen below, I was able to successfully identify the precomputed pin values.
