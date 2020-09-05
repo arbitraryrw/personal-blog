@@ -20,7 +20,7 @@ I have been using [Radare2](https://rada.re/r/) sporadically for the past two ye
 Instead of breaking this down into logical sections, such as static / dynamic analysis, I’ve decided to walk-through my step by step approach to solving the challenge. The rationale behind this is to provide an accurate representation of how I approached the problem. Reversing in my experience is a very iterative process and understanding why a problem was solved in a certain way is really interesting.
 
 ### Initial Analysis
-After downloading the challenge, the first step is to run the binary. Unfortunately the challenge is rate limited, as seen in the error message below. Apparently the binary can only be unlocked once per hour at three minutes past the hour. The next step is to bypass this _feature_ to speed up the process of solving the challenge.
+After downloading the challenge, the first step is to run the binary, however, this didn't get me very far. It appears the Cyberlock binary only accepts pins once per hour, at three minutes past the hour. Of course the main focus immediately became bypassing this _feature_ to speed up the process of solving the challenge. The full error message can be seen below.
 
 ```
 ➜ ./Cyberlock 
@@ -46,7 +46,7 @@ After downloading the challenge, the first step is to run the binary. Unfortunat
 [!] Oh... we forgot to tell you that this secure lock can only be unlocked once per hour - ha ha ha! Come back at 3 minutes past the hour.
 Exiting...
 ```
-I then loaded the challenge into r2 and started searching for any interesting strings using the `iz` command. I found a few unusual 128 character length strings but nothing obvious. In addition, I didn’t see anything resembling a flag so I needed to dig deeper. The next step is to look at the high level control flow of binary, I started by listing the functions in the binary by using the `afl` command.
+I started by loading the challenge into r2 and searching for any interesting strings using the `iz` command. I found a few unusual 128 character length strings but nothing obvious. In addition, I didn’t see anything resembling a flag so I needed to dig deeper. The next step is to look at the high level control flow of binary, I started by listing the functions in the binary by using the `afl` command.
 
 ```nasm
 ➜ r2 CyberLock 
@@ -193,7 +193,7 @@ With this information I began trying to progress through the challenge. I re-ope
 [0x004018b0]> wa je 0x40196a
 ```
 
-Unforunately, this caused a segmentation fault. I jumped the gun a bit there so I went back to figuring out what was actually going on in more detail.
+Unforunately, this caused a segmentation fault. Clearly the application is using this value in some way, shape, or form. I went back to figuring out what was actually going on in more detail.
 
 ```
 ➜ ./Cyberlock
@@ -478,12 +478,14 @@ uVar4 = g_string_new(uVar4);
 ...
 ```
 
-Finally, after all of this the hash is then converted to upper case and compared against a value in an array. If the value matches, a success message is printed and the loop continues onto the next pin. If not, an error message is printed.
+Finally, the output of this operation is then converted to upper case and compared against a value in an array. If the value matches, a success message is printed and the loop continues onto the next pin. If not, an error message is printed.
 
 ```c
+...
 ppcVar5 = (char **)g_string_ascii_up(uVar4);
 iVar1 = strncmp((&PTR_s_D9259A378FC0EA75C1828369059854DE_00404100)[(int)(local_6c - 1)],
                 *ppcVar5,0x80);
+...
 ```
 
 To dig a bit deeper into the hash values, I dissasmbled the function and searched for any references to `strncmp`. As seen below, there is a hit at offset `0x004016d2`, the first parameter to this function is populated at offset `0x004016d2`, and the array containing the hashes is at offset `0x404100`.
@@ -562,7 +564,7 @@ The upper case value of this opeation matches the hash at offset `0x0040208f`.
 
 ### Deciphering the Pin Values
 
-So at this point I have the hashes, I know how the final hashes are generated and salted but I don't know anything about the pin values themselves. After a lot more digging I hit a dead end, I didn't find any further clues and started doing some guess work. 
+So at this point I have the final hashes, I know how the final hashes are generated and salted but I don't know anything about the pin values themselves. After a lot more digging I hit a dead end, I didn't find any further clues and started doing some guess work. 
 
 Based off of the first pin I know that the pins are probably 64 characters long. I know that sha256 hashes are 256 bits long, 4 bits are enough to encode each character, so 64 hex characters matches the profile. I found the following "SHA-256 Decoder" [here](https://www.dcode.fr/sha256-hash) and attempted to _"decode"_ the hash.
 
