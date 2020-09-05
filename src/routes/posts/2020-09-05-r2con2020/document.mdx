@@ -6,21 +6,21 @@ import duplicateHashPins from './imgs/duplicate_hash_pins.png'
 <div className={styles["blogBody"]}>
 
 # Introduction
-[R2con](https://rada.re/con/2020/) is a yearly conference about [radare2](https://rada.re/r/), a multi-platform, open-source, reverse engineering framework. As part of the conference they host a CTF. This year the CTF consisted of fourteen challenges across three levels: easy, medium, and hard. More details can be found [here](https://rada.re/con/2020/#CTF). This post goes into detail on solving a medium level challenge that I found particularly interesting, Cyberlock. The challenge boldly claims to be: 
+[R2con](https://rada.re/con/2020/) is a yearly conference about [radare2](https://rada.re/r/), a multi-platform, open-source, reverse engineering framework. As part of the conference they host a CTF. This year consisting of fourteen challenges across three levels: easy, medium, and hard. More details can be found [here](https://rada.re/con/2020/#CTF). This post goes into detail on solving a medium level challenge that I found particularly interesting, Cyberlock. The challenge boldly claims to be: 
 
 _“The world's only quantum, military-grade, agile, blockchain backed, hardened, bullet-proof 12-pin digital cryptographic cyber lock”_.
 
-As the description suggests, it is a 12-pin digital lock that requires 12 separate keys to unlock the flag. The challenge is an unobfuscated stripped x86 binary that requires some creative problem solving. This post documents the journey of solving this challenge, mistakes and all.
+As the description suggests, it is a 12-pin digital lock that requires twelve separate keys to unlock the flag. The challenge is an unobfuscated stripped x86 binary that requires some creative problem solving. This post documents the journey of solving this challenge, mistakes and all.
 
 ## Background
-I have been using [Radare2](https://rada.re/r/) sporadically for the past two years in combintation with other disassemblers / decompilers as part of my reversing toolkit. I particularly enjoy scripting with R2 using [R2pipe](https://radare.gitbooks.io/radare2book/content/scripting/r2pipe.html) as it provides a quick and convenient interface. Unfortunately, I rarely get the opportunity to use R2 as my primary reversing tool because of time constraints. Last r2con, in 2019, I wrote a blog post on solving a CTF challenge called "Land of Ecodelia" available [here](https://nikola.dev/posts/2019-09-10/r2con2019). This was my first time using R2 as my primary tool from end to end. Since then I’ve been trying to use R2 more when I can.
+I have been using [Radare2](https://rada.re/r/) sporadically for the past two years in combintation with other disassemblers / decompilers as part of my reversing toolkit. I particularly enjoy scripting with r2 using [r2pipe](https://radare.gitbooks.io/radare2book/content/scripting/r2pipe.html) as it provides a quick and convenient interface. Unfortunately, I rarely get the opportunity to use r2 as my primary reversing tool because of time constraints. Last r2con, in 2019, I wrote a blog post on solving a CTF challenge called "Land of Ecodelia" available [here](https://nikola.dev/posts/2019-09-10/r2con2019). This was my first time using r2 as my primary tool from end to end. Since then I’ve been trying to use r2 more when I can.
 
 # Walk-through
 
 Instead of breaking this down into logical sections, such as static / dynamic analysis, I’ve decided to walk-through my step by step approach to solving the challenge. The rationale behind this is to provide an accurate representation of how I approached the problem. Reversing in my experience is a very iterative process and understanding why a problem was solved in a certain way is really interesting.
 
 ### Initial Analysis
-After downloading the challenge, the first step is to run the binary. Unfortunately in this case the challenge is rate limited according to the error message below. Apparently the binary can only be unlocked once per hour at 3 minutes past the hour. The next step was to first bypass this _feature_ to speed up the process.
+After downloading the challenge, the first step is to run the binary. Unfortunately the challenge is rate limited, as seen in the error message below. Apparently the binary can only be unlocked once per hour at three minutes past the hour. The next step is to bypass this _feature_ to speed up the process of solving the challenge.
 
 ```
 ➜ ./Cyberlock 
@@ -46,7 +46,7 @@ After downloading the challenge, the first step is to run the binary. Unfortunat
 [!] Oh... we forgot to tell you that this secure lock can only be unlocked once per hour - ha ha ha! Come back at 3 minutes past the hour.
 Exiting...
 ```
-I then loaded the challenge into R2 and started searching for any interesting strings using the `iz` command. I found a few unusual 128 character length strings but nothing obvious. In addition, I didn’t see anything resembling a flag so I needed to dig deeper. The next step is to look at the high level control flow of binary, I started by listing the functions in the binary.
+I then loaded the challenge into r2 and started searching for any interesting strings using the `iz` command. I found a few unusual 128 character length strings but nothing obvious. In addition, I didn’t see anything resembling a flag so I needed to dig deeper. The next step is to look at the high level control flow of binary, I started by listing the functions in the binary by using the `afl` command.
 
 ```nasm
 ➜ r2 CyberLock 
@@ -93,7 +93,7 @@ I then loaded the challenge into R2 and started searching for any interesting st
 0x00401000    3 23           fcn.00401000
 ```
 
-The challenge contains symbols relating to Crypto functionality, however, this isn't really important at this stage. I decided to start at the `main` function and work my way down.
+The challenge contains symbols relating to crypto functionality, however, this isn't really important at this stage. I decided to start at the `main` function and work my way down.
 
 ```nasm
 [0x004018b0]> s main
@@ -166,7 +166,7 @@ The challenge contains symbols relating to Crypto functionality, however, this i
 
 At a glance it looks like it is running a function, verifying the return value is `3` at offset `0x004018cc`. If not it throws an error message saying the lock only accepts input at three minutes past the hour. 
 
-If it is three minutes past the hour, it opens and reads from the file `/tmp/masterkey.in` at offset `0x004018fa` using `fopen`. The result of this function is then stored in the `rax` register and then validated at offset `0x00401908`, docs for `fopen` can be found [here](https://man7.org/linux/man-pages/man3/fopen.3.html).
+If it is three minutes past the hour, it opens and reads from the file `/tmp/masterkey.in` at offset `0x004018fa` using `fopen`. The result of this operation is then stored in the `rax` register and null checked at offset `0x00401908`, docs for `fopen` can be found [here](https://man7.org/linux/man-pages/man3/fopen.3.html).
 
 If the contents are null, a static value is sent to `fcn.004014d0` at offset `0x00401960`, along with the value stored in `dword [var_8h]` as the second parameter. Otherwise, the contents of the file are then extracted at offset `0x0040191e` and null checked at offset `0x0040192a`. The contents of the file are then passed as a parameter to `fcn.004014d0` at offset `0x0040194b`, the same `dword [var_8h]` value is used as the second parameter.
 
@@ -314,9 +314,9 @@ From the initial analysis I recognised the Pin 1 value from the main function di
 ...
 
 ```
-A quick grep reveals that the second half of this 128 character value is treated as Pin 2, therefore it is safe to assume that each pin is 64 characters in length. I presume this was placed here as a clue / to provide context.
+A quick grep reveals that the second half of this 128 character value is treated as Pin 2, therefore it is safe to assume that each pin is 64 characters in length. I presume this was placed here as a clue to provide context.
 
-Using the information gathered so far, I created a file containing these values in `/tmp/masterkey.in` and ran the binary again. This produced similar output, however, I could see a new message `[i] Procesing input code...` as seen below.
+Using the information gathered so far, I created a file containing these values in `/tmp/masterkey.in` and tried to run the binary again. This produced similar output, however, I could see a new message `[i] Procesing input code...` as seen below.
 
 ```
 ➜ ./CyberLock 
@@ -358,7 +358,7 @@ This indicates that the binary is now reading the pin values from a file as the 
 ...
 ```
 
-The next step is to figure out what is happening in the `fcn.004014d0` function as this is clearly handling the pin values in some way. The dissasembly of this function is significantly harder to follow so I decided to work off of the decompiled code. For convinience I used the Ghidra decompiler using [r2ghidra-dec](https://github.com/radareorg/r2ghidra-dec) plugin. The output of this can be seen below:
+The next step is to figure out what is happening in the `fcn.004014d0` function as this is clearly handling the pin values in some way. The dissasembly of this function is significantly harder to follow so I decided to work off of the decompiled code. For convinience I used the Ghidra decompiler plugin for r2, [r2ghidra-dec](https://github.com/radareorg/r2ghidra-dec). Through this plugin you're able to leverage the Ghidra decompiler by running the `pdg` command in r2, the results of this can be seen below:
 
 ```c
 [0x004018c]> pdg
@@ -548,7 +548,7 @@ Endianness makes this a bit more confusing, the first index of the array indicat
 0x004025a6     .string "\n[i] Flag: %s%s%s\n" ; len=19
 ```
 
-Interestingly, I assumed there would be twelve distinct values hence why I printed twelve instructions above, however, it looks like some of the hashes are reused. So for example pin four is used again as pin seven, and pin five is used again as pin twelve. I verified this by taking a closer look at the hexdump values in the array of pointers that point to the hash values.
+Interestingly, I assumed there would be twelve distinct values hence why I printed twelve instructions above, however, it looks like some of the hashes are reused. So for example pin four is used again as pin seven, and pin five is used again as pin twelve. I verified this by taking a closer look at the hexdump values in the array of pointers (that point to the hash values).
 
 <img src={duplicateHashPins} className={styles["screenshot"]} alt="Duplicate pin hashes" />
 
@@ -562,7 +562,7 @@ The upper case value of this opeation matches the hash at offset `0x0040208f`.
 
 ### Deciphering the Pin Values
 
-So at this point I have the hashes, I know how the final hashes generated and salted but I don't know anything about the pin values themselves. After digging further into the binary I didn't find any further clues and started doing some guess work. 
+So at this point I have the hashes, I know how the final hashes are generated and salted but I don't know anything about the pin values themselves. After a lot more digging I hit a dead end, I didn't find any further clues and started doing some guess work. 
 
 Based off of the first pin I know that the pins are probably 64 characters long. I know that sha256 hashes are 256 bits long, 4 bits are enough to encode each character, so 64 hex characters matches the profile. I found the following "SHA-256 Decoder" [here](https://www.dcode.fr/sha256-hash) and attempted to _"decode"_ the hash.
 
@@ -571,8 +571,17 @@ Based off of the first pin I know that the pins are probably 64 characters long.
 This found the hash contained the value `c`. I repeated this step on the second pin that is provded and the hash contained the value `r`. I confirmed this work flow by hasing the value `c` using sha256, converting the output to upper case, appending `_3_r2con2020` to the output, hashing this using sha512, and then converting it to upper case again. The output of this work flow produced an identical hash value to the first pin.
 
 ### Generating the Hashed Pins
+Since the pin values seem to be a single character, brute-forcing the pin values seemed like the best option. I decided to write a script to automate this. The script performs the following operations for each letter of the alphabet, both upper and lower case:
 
-Now that this worked, I decided to try and script this to generate the hashes and compare them against the expected hashes from the binary. The working script is available [here](https://gist.github.com/arbitraryrw/0e500bf82b48e85f35393fd17c72190c).
+- Sha256 hashes the character
+- Converts the digest to upper case
+- Appends `_3_r2con2020` to the digest
+- Sha512 hashes the concatenated digest 
+- Converts the sha512 to upper case
+- Compares the output against the known pin hash
+- If there is a match, it moves onto the next pin hash
+
+This process is repeated for each pin hash. The working script is available [here](https://gist.github.com/arbitraryrw/0e500bf82b48e85f35393fd17c72190c). As seen below, I was able to successfully identify the precomputed pin values.
 
 ```python
 [INFO] we have 12 hashy boys
@@ -618,7 +627,7 @@ Now that this worked, I decided to try and script this to generate the hashes an
 6D044F5FC76E34DA10E1B45FEEE5F18BE7EDB1773F79BB7B435B05321651DAEFD374CDC681DC06FAA65E374E38337B88CA046DEAA1FCE4363854FF888CFF4B8E7875D600C2682390412A8CF79B37D0B11148B0FA043A718774C572BD8A25ADBEB1BFCD5C0256AE11CECF9F9C3F925D0E52BEAF89
 ```
 
-The precomputed pin key spells out `chaosMoNKeys`. The last step is to copy and paste the pre-computed pins it into the `/tmp/masterkey.in` directory.
+The precomputed pin key spells out `chaosMoNKeys`. The last step is to copy and paste the upper case sha256 hash for each pin into the `/tmp/masterkey.in` file.
 
 ```
 ➜ cat /tmp/masterkey.in
@@ -685,9 +694,9 @@ D943E093F577DA25C36988246B86BE9A55762D316A3026C2836D044F5FC76E34DA10E1B45FEEE5F1
 The flag for this challenge is `r2con{StopL0ckPickingY0urNos3}`.
 
 # Conclusion 
-Cyberlock is a really interesting and creative CTF challenge. The mechanic of making the flag depend on twelve pins is really smart, it forces the attacker to think - I really enjoyed that. Also, I appreciated the attempt to rate limit attackers. It provided a nice entry level problem to teach players how to use r2 practically.
+Cyberlock is a really interesting and creative CTF challenge. The mechanic of making the flag depend on twelve ambiguous pins is really smart, it forces the attacker to think - I really enjoyed that. Also, I appreciated the attempt to rate limit attackers. It provided a nice entry level problem to teach players how to use r2 practically.
 
-A big thank you to the Radare2 team for organising the conference and to [@hexploitable](https://twitter.com/hexploitable) for writing the challenge. I got in contact with [@hexploitable](https://twitter.com/hexploitable) and they were kind enough to share the challenge source [here](https://gist.github.com/hexploitable/25e1805b832fa3e2c25ba4875ffce2dd).
+A big thank you to the Radare2 team for organising the conference and to [@hexploitable](https://twitter.com/hexploitable) for writing the challenge. I got in contact with [@hexploitable](https://twitter.com/hexploitable) and they were kind enough to share the challenge source [here](https://gist.github.com/hexploitable/25e1805b832fa3e2c25ba4875ffce2dd). They kindly gave me permission to include it in this post.
 
 # Useful References 
 - [Radare2](https://rada.re/r/)
