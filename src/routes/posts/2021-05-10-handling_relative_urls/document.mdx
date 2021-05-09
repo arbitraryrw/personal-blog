@@ -3,12 +3,6 @@ import styles from './document.module.css'
 
 <div className={styles["blogBody"]}>
 
-## TLDR: Recommended Approach
-Much like any untrusted user input, relative URLs should be canonicalised, sanitised, and then validated - in that order. Canonicalisation and sanitation should be done through established URL parsing libraries such as [URL Node package](https://nodejs.org/dist/latest-v8.x/docs/api/url.html#url_the_whatwg_url_api) that follow the [WHATWG standard](https://url.spec.whatwg.org/). The output of these operations should then be validated using a strict pattern, only allowing required characters. Dangerous characters such as `@`, `#` and multiple `/` characters should not be on the allow list.
-
-Where possible handle absolute URLs to avoid introducing unnecessary complexity, [OWASP Validating URLs](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html#validating-urls) is a great resource on such solutions. 
-
-
 # Introduction
 The purpose of this post is to explore an approach to handling relative URLs safely for redirects and forwards. Many web security vulnerabilities that originate from unvalidated redirects and forwards are often remediated by restricting URLs. This restriction usually takes the form of an allow-list of known good absolute URLs in some capacity. See [OWASP Validating URLs](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html#validating-urls) or [Google Open Redirect](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html#preventing-unvalidated-redirects-and-forwards)
  for examples of this. Unfortunately, not all applications can adopt default allow-listing approach because the absolute URL may not be known ahead of time. This can cause friction as the one-size-fits all approach does not always work.
@@ -16,7 +10,7 @@ The purpose of this post is to explore an approach to handling relative URLs saf
 Notably,  all of the code examples in this post can be found in the supporting [url-parsing github repo](https://github.com/arbitraryrw/url-parsing).
 
 # Background 
-Objectively, URL parsing is difficult. There are many individual components that comprise a URL, and how each component interacts with one another can be confusing. For example, authority delegation and how anchors move in a URL goes way outside the scope of the average user. [Orange Tsai](https://twitter.com/orange_8361) presented [A New Era of SSRF](https://paper.seebug.org/papers/Security%20Conf/Blackhat/2017_us/us-17-Tsai-A-New-Era-Of-SSRF-Exploiting-URL-Parser-In-Trending-Programming-Languages.pdf) at Black Hat USA 2017 highlighting some of the problems that can arise, 10/10 research would recommend reading.
+Objectively, URL parsing is difficult. There are many individual components that comprise a URL, and how each component interacts with one another can be confusing. For example, authority delegation in a URL goes way outside the scope of the average user. [Orange Tsai](https://twitter.com/orange_8361) presented [A New Era of SSRF](https://paper.seebug.org/papers/Security%20Conf/Blackhat/2017_us/us-17-Tsai-A-New-Era-Of-SSRF-Exploiting-URL-Parser-In-Trending-Programming-Languages.pdf) at Black Hat USA 2017 highlighting some of the problems that can arise, 10/10 research would recommend reading.
 
 ## Basic URL Structure
 The syntax and semantics of a URI are intentionally broad to create an extensible means for identifying resources. This introduces ambiguity as there are inconsistencies between URL parsers and the [RFC2396](https://tools.ietf.org/html/rfc2396) / [RFC3986](https://tools.ietf.org/html/rfc3986) specifications. [WHATWG](https://nodejs.org/dist/latest-v8.x/docs/api/url.html#url_the_whatwg_url_api) defined a contemporary implementation based on these specifications forming a standard. The following comporises [URL Strings and URL Objects](https://nodejs.org/dist/latest-v8.x/docs/api/url.html#url_url_strings_and_url_objects) in JavaScript.
@@ -121,11 +115,35 @@ For clarification, the *"authority"* part above refers to [RFC3986 - Authority](
    authority, treating it as an opaque string from the double-slash to
    the first terminating delimiter, until such time as the URI is
    dereferenced.
-```   
+```
 
-# How Do We Handle Relative URLs?
 
- Modern browsers automatically convert back slashes (`\`) into forward slashes (`/`) despite this being against [RFC3986 - URI Genric Syntax](https://tools.ietf.org/html/rfc3986). In addition, the `@` character can be used to define a target host redirecting the victim to a new domain, this type of attack is defined as [Semantic Attacks](https://tools.ietf.org/html/std66#section-7.6).
+To demonstrate the text above, the following code snippet from [Mozilla](https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_is_a_URL) demonstrates the concepts well.
+
+```
+Full URL
+
+https://developer.mozilla.org/en-US/docs/Learn
+
+Implicit protocol
+
+//developer.mozilla.org/en-US/docs/Learn
+
+In this case, the browser will call that URL with the same protocol as the 
+one used to load the document hosting that URL.
+
+Implicit domain name
+
+/en-US/docs/Learn
+
+This is the most common use case for an absolute URL within an HTML document. 
+The browser will use the same protocol and the same domain name as the one 
+used to load the document hosting that URL. Note: it isn't possible to omit 
+the domain name without omitting the protocol as well.
+```
+
+# Attacking Implementations
+If this problem wasn't complicated enough, browsers also add some additional complexity. Modern browsers automatically convert back slashes (`\`) into forward slashes (`/`) despite this being against [RFC3986 - URI Genric Syntax](https://tools.ietf.org/html/rfc3986). In addition, the `@` character can be used to define a target host redirecting the victim to a new domain, this type of attack is defined as [Semantic Attacks](https://tools.ietf.org/html/std66#section-7.6).
 
  The dangerous characters and encoded versions can be seen below:
 
@@ -166,10 +184,32 @@ Raw url: /?nextUrl=%2Fnikola.dev
 Parsed nextUrl parameter: /nikola.dev
 ```
 
+# Recommended Approach
+Much like any untrusted user input, relative URLs should be canonicalised, sanitised, and then validated - in that order. Canonicalisation and sanitation should be done through established URL parsing libraries such as [URL Node package](https://nodejs.org/dist/latest-v8.x/docs/api/url.html#url_the_whatwg_url_api) that follow the [WHATWG standard](https://url.spec.whatwg.org/). The output of these operations should then be validated using a strict pattern, only allowing required characters. Dangerous characters such as `@`, `#` and multiple `/` characters should not be on the allow list. An example of such validation can be seen below:
 
+```js
+exports.isUrlValid = function (relUrl) {
+
+    console.log("Handling: " + relUrl)
+
+    var re = new RegExp("^(\/[a-zA-Z0-9]+){0,}$");
+
+    if (re.test(relUrl)) {
+      return true
+    } else {
+      return false
+    }
+  };
+```
+
+Where possible handle absolute URLs to avoid introducing unnecessary complexity, [OWASP Validating URLs](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html#validating-urls) is a great resource on such solutions. 
+
+# Conclusion
+This post presented a novel approach to handling relative URLs for redirects and forwards. The examples presented are by no means comprehensive, this is just touching the surface of the problem. However, the examples demonstrated did give insight into the approach attackers take when examining forward / redirect logic. All of the code examples in this post can be found in the supporting [url-parsing github repo](https://github.com/arbitraryrw/url-parsing).
 
 ## References:
-- [Demo project](https://github.com/arbitraryrw/url-parsing)
+- [url-parsing github repo](https://github.com/arbitraryrw/url-parsing)
+- [Mozilla - What is a URL?](https://developer.mozilla.org/en-US/docs/Learn/Common_questions/What_is_a_URL)
 - [Google Open Redirect](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html#preventing-unvalidated-redirects-and-forwards)
 - [OWASP Preventing Unvalidated Redirects and Forwards](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html#preventing-unvalidated-redirects-and-forwards)
 - [OWASP Validating URLs](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html#validating-urls)
