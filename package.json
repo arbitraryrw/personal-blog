@@ -23,7 +23,7 @@
     "react-navi-helmet-async": "^0.13.3",
     "react-scripts-mdx": "3.0.3",
     "rimraf": "^2.6.2",
-    "slugify": "^1.5.3"
+    "slugify": "^1.6.0"
   },
   "scripts": {
     "start": "react-scripts start",
