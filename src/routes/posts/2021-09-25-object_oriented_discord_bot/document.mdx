@@ -1,0 +1,315 @@
+import styles from './document.module.css'
+
+
+<div className={styles["blogBody"]}>
+
+# Introduction
+The purpose of this post is present an approach to creating and structuring a discord bot in Python using [discord.py](https://discordpy.readthedocs.io/en/stable/#getting-started) for larger projects. The intention behind this is to not repeat information that is available in popular tutorials. Instead, the goal is to dig into the details of subclassing components in [discord.py](https://discordpy.readthedocs.io/en/latest/api.html#) and using [Cogs](https://discordpy.readthedocs.io/en/latest/ext/commands/cogs.html) to promote modular, scalable, and maintainable code. The examples presented in this post are going to be generic and high level, if you would like to see a real world example see my [Broken Jukebox Discord Bot](https://github.com/arbitraryrw/broken-jukebox-discord-bot) project.
+
+**Important notice:** The examples in this post have the Discord token as a hard coded value, this is for demonstration purposes. Hard coding secrets is bad, set this value via a dynamically loaded configuration value / environment variable instead.
+
+# Background 
+Discord bots are a great way to enhance the functionality of a server and enrich user experience. There are many tutorials out there that provide a quick and dirty approach to creating a discord bot. For examples, tutorials such as Real Python’s [How to Make a Discord Bot in Python](https://realpython.com/how-to-make-a-discord-bot-python/) and [Digital Ocean’s Discord bot tutorial](https://www.digitalocean.com/community/tutorials/how-to-build-a-discord-bot-in-python-on-ubuntu-20-04). These tutorials provide a great foundation but skip over more structured and scalable approaches. This is likely because it would have been confusing and counterintuitive to getting up and running as fast as possible. I've written this post to dig into some of the missing details after investigating it myself.
+
+# Basic Client / Bot Example
+
+In [discord.py](https://discordpy.readthedocs.io/en/stable/api.html#) a [Client](https://discordpy.readthedocs.io/en/stable/api.html#discord.Client) represents a client connection to Discord. This object can be used to interact with the Discord API / WebSocket. The following code snippet is taken from [discord.py Quickstart](https://discordpy.readthedocs.io/en/stable/quickstart.html) demonstrates how to create a basic client:
+
+```python
+import discord
+
+client = discord.Client()
+
+@client.event
+async def on_ready():
+    print(f'{client.user} bot user is ready to rumble!')
+
+@client.event
+async def on_message(message):
+    if client.user == message.author:
+        return
+
+    if message.content == "hello":
+        await message.channel.send('hello right back at you!')
+
+client.run('your secret discord token')
+```
+
+As the functionality of a discord bot grows so will the complexity of the code. Logically, at some point it will make sense to extend the client object by subclassing it as seen below:
+
+```python
+import discord
+
+class CustomClient(discord.Client):
+    async def on_ready(self):
+        print(f'{self.user} bot user is ready to rumble!')
+
+    async def on_message(self, message):
+        if self.user == message.author:
+            return
+
+        if message.content == "hello":
+            await message.channel.send('hello right back at you!')
+
+client = CustomClient()
+client.run('my token goes here')
+```
+
+This same concept can be applied to the [Bot](https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html) Client, a Bot Client is an extended Client object that is exposed by discord.py. Bot clients are particularly useful when handling user input / commands as there are many utility functions built into the Bot Client ontop of the regular Client. The code below demonstrates how to subclass the Bot client like we did above with a regular client.
+
+```python
+from discord.ext import commands
+
+class CustomBotClient(commands.Bot):
+
+    async def on_ready(self):
+        print(f'{self.user.name} bot user is ready to rumble!')
+
+client = CustomBotClient()
+client.run('my token goes here')
+
+```
+
+Creating a subclass by itself in this context has no real benefits from a scalability / maintainability perspective. Everything is still in one file and over time it will become bigger and bigger. Instead, we can then break the `CustomBotClient` class into a separate file, for demonstration purposes I will use the following file structure:
+
+```
+.
+├── clients
+│   └── custom_bot_client.py
+└── run.py
+```
+
+The `custom_bot_client.py` contains just the code relating to the custom client. The contents can be seen below:
+
+```python
+from discord.ext import commands
+
+class CustomBotClient(commands.Bot):
+
+    async def on_ready(self):
+        print(f'{self.user.name} has connected to Discord!')
+    
+```
+
+We can then create an entrypoint to the application, I have called this file `run.py`. The `run.py` file can then reference `custom_botclient.py`, the contents of `run.py` can be seen below:
+
+```python
+#!/usr/bin/env python3
+from clients.custom_bot_client import CustomBotClient
+
+def main():
+    token = "your token"
+
+    bot = CustomBotClient(
+        command_prefix='$'
+    )
+
+    bot.run(token)
+
+
+if __name__ == '__main__':
+    main()
+```
+
+Now we have split the bot logic from the setup logic, making the code more modular. However, this is only a small step in the right direction.
+
+
+# Making the Bot Actually Modular 
+In the previous section we extended the default discord.py bot client to perform some custom functionality in a modular way. If we kept building in the `custom_botclient.py` it would eventually result in a monolithic class, moving the problem instead of solving it. This is where [Cogs](https://discordpy.readthedocs.io/en/latest/ext/commands/cogs.html) come in, Cogs provide the ability to organize a collection of commands, listeners, and state into modular classes. A cog is just a class that has its own event listeners and commands.
+
+To demonstrate this, I've created a new file `greetings.py` in a directory I've arbitrarily called `cogs`. The folder structure now looks like:
+
+```
+├── clients
+│   └── custom_bot_client.py
+├── cogs
+│   └── greetings.py
+└── run.py
+```
+
+The `greetings.py` file has an example command listener and event listener. The command listener simply says "Hey _author_name_" when a member of the server writes `$hey` in a channel. The event listener listens on the [`on_member_join`](https://discordpy.readthedocs.io/en/latest/api.html?highlight=on_member_join#discord.on_member_join) lifecycle method that is invoked when a member joins the server. The listener subscribes to this event so whenever that event occurs it will call our custom code. In this case, it will simply post in the system channel `A wild _insert_user_name_ has appeared!`. The code for `greetings.py` is below:
+
+```python
+import discord
+
+class Greetings(discord.ext.commands.Cog, name='Greetings module'):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @discord.ext.commands.command(name="hey")
+    async def adhoc_play(self, ctx):
+        await ctx.send(f'Hey {ctx.author.name}')
+        
+    @discord.ext.commands.Cog.listener()
+    async def on_member_join(self, member):
+        channel = member.guild.system_channel
+        if channel is not None:
+            await channel.send(f'A wild {member.mention} has appeared!')
+```
+
+This cog can then be added to the bot we created earlier using the [`add_cog`](https://discordpy.readthedocs.io/en/latest/ext/commands/api.html#discord.ext.commands.Bot.add_cog) function. To demonstrate this, I've updated the `run.py` file to add the `Greetings` cog.
+
+```python
+#!/usr/bin/env python3
+
+import discord
+from clients.custom_bot_client import CustomBotClient
+from cogs.greetings import Greetings
+
+def main():
+    token = "your token"
+
+    intents = discord.Intents.default()
+    intents.members = True
+
+    bot = CustomBotClient(
+        command_prefix='$', 
+        intents=intents
+    )
+
+    bot.add_cog(Greetings(bot))
+
+    bot.run(token)
+
+
+if __name__ == '__main__':
+    main()
+```
+
+You may have noticed some changes relating to `intents` in `run.py`. To be able to listen to events in discord.py your bot needs to subscribe to events through intents. An intent basically allows a bot to subscribe to specific buckets of events, see the [Primer to Gateway Intents](https://discordpy.readthedocs.io/en/latest/intents.html) page for more details. For demonstration purposes, I wanted to showcase both a command and an event listener.
+
+
+# Improved Error Handling with Cogs
+An unfortunate side effect of modular code that leverages common components is that it often results in having to repeat error handling logic. This can result in inconsistent error handling and introduce edge cases. Fortunately, there is a decent solution with cogs in discord.py.  We saw earlier that cogs act as an attachment / extension to a bot client. When an error occurs, discord.py will send an event to all listeners subscribed to the [on_command_error](https://discordpy.readthedocs.io/en/stable/ext/commands/api.html#discord.ext.commands.Bot.on_command_error) event. To demonstrate this, we can expand the `greetings.py` cog to handle the `CommandNotFound` error:
+
+```python
+import discord
+
+class Greetings(discord.ext.commands.Cog, name='Greetings module'):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @discord.ext.commands.command(name="hey")
+    async def adhoc_play(self, ctx):
+        await ctx.send(f'Hey {ctx.author.name}')
+        
+    @discord.ext.commands.Cog.listener()
+    async def on_member_join(self, member):
+        channel = member.guild.system_channel
+        if channel is not None:
+            await channel.send(f'A wild {member.mention} has appeared!')
+    
+    @discord.ext.commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, discord.ext.commands.CommandNotFound):
+            await ctx.send('I do not know that command?!')
+```
+
+When an unknown command is entered, such as `$foobar` the bot will respond with `I do not know that command?!`. Instead of having to repeat this logic or worry about overlapping error handling, we can split the error handling logic into a separate error handling cog. For demonstration purposes I have put this into a file I've arbitrarily called `command_err_handler.py`, the directory structure now is:
+
+```
+├── clients
+│   └── custom_bot_client.py
+├── cogs
+│   ├── command_err_handler.py
+│   └── greetings.py
+└── run.py
+```
+
+The `command_err_handler.py` file contains the `on_command_error` that was previously in `greetings.py`. The `command_err_handler.py` file contains the following code:
+
+```python
+import discord
+import sys
+import traceback
+from discord.ext import commands
+
+
+class CommandErrHandler(commands.Cog):
+
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        """The event triggered when an error is raised while invoking a command.
+        Parameters
+        ------------
+        ctx: commands.Context
+            The context used for command invocation.
+        error: commands.CommandError
+            The Exception raised.
+        """
+        if isinstance(error, discord.ext.commands.CommandNotFound):
+            await ctx.send('I do not know that command?!')
+        else:
+            print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
+            traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
+```
+
+For reference the `greetings.py` file has been updated to not include the `on_command_error` listener, `greetings.py` now contains:
+
+```python
+import discord
+
+class Greetings(discord.ext.commands.Cog, name='Greetings module'):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @discord.ext.commands.command(name="hey")
+    async def adhoc_play(self, ctx):
+        await ctx.send(f'Hey {ctx.author.name}')
+        
+    @discord.ext.commands.Cog.listener()
+    async def on_member_join(self, member):
+        channel = member.guild.system_channel
+        if channel is not None:
+            await channel.send(f'A wild {member.mention} has appeared!')
+
+```
+
+The `CustomBotClient` instantiated in the `run.py` file can then be updated to include the `command_err_handler.py` cog, `run.py` contains:
+
+```python
+#!/usr/bin/env python3
+import discord
+from clients.custom_bot_client import CustomBotClient
+from cogs.greetings import Greetings
+from cogs.command_err_handler import CommandErrHandler
+
+def main():
+    token = "your token"
+
+    intents = discord.Intents.default()
+    intents.members = True
+
+    bot = CustomBotClient(
+        command_prefix='$', 
+        intents=intents
+    )
+
+    bot.add_cog(Greetings(bot))
+    bot.add_cog(CommandErrHandler(bot))
+
+    bot.run(token)
+
+
+if __name__ == '__main__':
+    main()
+```
+
+When running the bot and entering a command we have not defined, such as `$foobar`, observe the error is handled by the `CommandErrHandler` class. The bot responds with `I do not know that command?!`. Having our error handling logic for commands centralised in a single class is just one example, this can be applied to any of the [discord.py Exceptions](https://discordpy.readthedocs.io/en/latest/ext/commands/api.html#exceptions). There are some more advanced examples of cog error handlers [here](https://gist.github.com/AileenLumina/510438b241c16a2960e9b0b014d9ed06) and [here](https://gist.github.com/EvieePy/7822af90858ef65012ea500bcecf1612) for inspiration.
+
+# Conclusion
+Writing a Discord bot is a great side project to improve your quality of life when playing games / talking to  friends. The examples and approaches presented in this post demonstrate a modular and maintainable way to structure your discord bot. From personal experience, small discord bot projects can quickly get out of hand and can result in some painful refactoring. I hope this post saves a few people from having some unnecessary stress when working on a personal project like myself.
+
+## References:
+- [discord.py instillation](https://discordpy.readthedocs.io/en/latest/intro.html#installing)
+- [discord.py API Reference](https://discordpy.readthedocs.io/en/latest/api.html#)
+- [discord.py Cogs](https://discordpy.readthedocs.io/en/latest/ext/commands/cogs.html)
+- [discord.py examples](https://github.com/Rapptz/discord.py/tree/v1.7.3/examples)
+- [asyncio python](https://realpython.com/async-io-python/)
+- [Real Python - How to Make a Discord Bot in Python](https://realpython.com/how-to-make-a-discord-bot-python/)
+- [Broken Jukebox Discord Bot](https://github.com/arbitraryrw/broken-jukebox-discord-bot)
+
+</div>
