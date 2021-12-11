@@ -1,0 +1,173 @@
+import styles from './document.module.css'
+import oidcarchitecture from './imgs/oidc-architecture.png'
+import s3actionssearch from './imgs/s3_action_search.png'
+
+
+<div className={styles["blogBody"]}>
+
+# Introduction
+[Github](https://github.com/) provides a built-in mechanism to automate development workflows through [Github actions](https://github.com/features/actions). Workflows can include anything from building a package, to deploying code to infrastructure. Integrating workflows with AWS services is a common use case, however, many tutorials suggest the path of least resistance - introducing sharp edges. Sharp edges in this context includes the use of:
+
+1. Long lasting IAM principals
+1. Overly permissive policies
+1. Accidentally exposing sensitive data
+1. Not leveraging free features such as [github repository secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets)
+1. Sharing AWS credentials with untrusted open source github actions
+
+This post presents an example repository with Github Actions that has been configured to use ephemeral AWS credentials through OpenID Connect (OIDC). The source contains a AWS Cloud Development Kit (CDK) application that defines all of the required resources to use OIDC, avoiding the sharp edges mentioned.
+
+# Background 
+Anyone in the Github community can create and publish [custom actions](https://docs.github.com/en/actions/creating-actions/about-custom-actions) for others to consume. This is great from a DevOps perspective, however, it inherently introduces operational risks. For example, searching the github actions marketplace [here](https://github.com/marketplace?type=actions&query=s3+) for S3 shows over a hundred actions. The majority of these actions encourage the use of bad security practices, such as using long term credentials and sharing credentials with untrusted code.
+
+<img src={s3actionssearch} className={styles["screenshot"]} alt="Github Actions S3 Search Results"/>
+
+In addition, there are many stack overflow posts such as [this
+](https://stackoverflow.com/questions/58643905/how-aws-credentials-works-at-github-actions) that highlight the confusion around integrating AWS credentials with github actions.
+
+# Recommended Approach
+The Github Actions documentation references an article on [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services). This rightfully suggests the use of OpenID Connect (OIDC) to allow your GitHub Actions workflows to access resources in AWS. Using OIDC eliminates the need to store AWS credentials as long term GitHub secrets. Through proxy, this also eliminates the need to create long term IAM principals, such as a user, in AWS for Github Actions Workflows. With OIDC, AWS issues short term credentials that are only valid for a single workflow run. Once complete, the credentials automatically expire. The full flow can be seen below:
+
+<img src={oidcarchitecture} className={styles["screenshot"]} alt="OIDC Architecture Diagram"/>
+
+*Image reference: [Github Actions Documentation](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)*
+
+1. In AWS, create an OIDC provider to establish trust between your IAM role and your GitHub workflow
+1. Whenever the GitHub Actions workflow job runs, GitHub's OIDC Provider auto-generates an OIDC token. This token contains multiple claims to establish an identity about the specific workflow that is trying to authenticate
+1. Step / action to request this token from GitHub's OIDC provider, and present it to your AWS OIDC provider
+1. Once the AWS OIDC provider successfully validates the claims presented in the token, it then provides short-lived credentials for the IAM role. The credentials are only used for the duration of the job
+
+For the full technical details on each step, see the [About security hardening with OpenID Connect](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect) article in the Github Actions docs.
+
+To streamline the process above, AWS has an official [configure-aws-credential](https://github.com/aws-actions/configure-aws-credentials) action that can be used to obtain ephemeral AWS credentials through OIDC. The next few sections walk through integrating this into a Github Actions workflow.
+
+# Creating an OIDC Provider in AWS Through CDK
+The [configure-aws-credential](https://github.com/aws-actions/configure-aws-credentials) action repository provides an example IAM role CloudFormation template [here](https://github.com/aws-actions/configure-aws-credentials#sample-iam-role-cloudformation-template), however, no examples are provided for the CDK. To demonstrate how to implement this in the CDK I wrote a dummy stack in Python, see [cdk_github_actions_demo_stack.py](https://github.com/arbitraryrw/cdk-github-actions-demo/blob/main/cdk_github_actions_demo/cdk_github_actions_demo_stack.py). 
+
+
+The dummy stack firstly creates an OIDC provider, the provider URL is `https://token.actions.githubusercontent.com` and the audience is `sts.amazonaws.com`. These configurations can be seen in the Github Actions documentation [here](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services#adding-the-identity-provider-to-aws).
+
+```python
+github_oidc_provider = iam.OpenIdConnectProvider(
+    self,
+    "GithubOIDC",
+    url="https://token.actions.githubusercontent.com",
+    thumbprints=["a031c46782e6e6c662c2c87c76da9aa62ccabd8e"],
+    client_ids=[
+        "sts.amazonaws.com" 
+    ]
+)
+```
+
+A role is then created for the OIDC provider to assume through federation. The condition string is used to restrict access to an individual repository through the sub field. These details are documented in the [Configuring The Role Trust Policy](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services#configuring-the-role-and-trust-policy) Github Actions documentation. Also see the [Creating a role for web identity or OpenID connect federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html) AWS docs for details on the IAM policy structure.
+
+```python
+github_actions_role = iam.Role(
+    self,
+    "DeployToBucketRole",
+    max_session_duration=cdk.Duration.seconds(3600),
+    role_name="github-actions-role",
+    description="Github actions deployment role to S3",
+    assumed_by=iam.FederatedPrincipal(
+        federated=github_oidc_provider.open_id_connect_provider_arn,
+        conditions={
+            "StringLike": {
+                "token.actions.githubusercontent.com:sub": 'repo:arbitraryrw/cdk-github-actions-demo:*'
+            }
+        },
+        assume_role_action="sts:AssumeRoleWithWebIdentity"
+    )
+)
+```
+
+For demonstration purposes I then create a S3 bucket and provide access to the IAM role to be able to read / write. 
+
+```python
+bucket = s3.Bucket(
+    self,
+    f"example_bucket",
+    bucket_name="cdk-github-actions-demo",
+    encryption=s3.BucketEncryption.S3_MANAGED,
+    enforce_ssl=True,
+    block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+    removal_policy=cdk.RemovalPolicy.DESTROY,
+    auto_delete_objects=True
+)
+
+bucket.grant_read_write(github_actions_role)
+```
+
+# Github Actions Workflow
+To demonstrate the [configure-aws-credential](https://github.com/aws-actions/configure-aws-credentials) action, I have created a dummy workflow, see [main.yaml](https://github.com/arbitraryrw/cdk-github-actions-demo/blob/main/.github/workflows/main.yml). The workflow uploads a file to the S3 bucket from the previous section using the ephemeral AWS credentials obtained from the OIDC provider.
+
+Firstly, the workflow has a *build job*, this simply simulates a build step by taking the files in the [resources](https://github.com/arbitraryrw/cdk-github-actions-demo/tree/main/resources) directory and uploading it for use with other jobs in the workflow. See the [upload-artifact](https://github.com/actions/upload-artifact) action repository for more details on how this action works.
+
+```yaml
+...
+build:
+    name: Emulate build step
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checking out repository
+        uses: actions/checkout@v2
+    - name: "Upload artifacts"
+        uses: actions/upload-artifact@v2
+        with:
+        name: build-artifacts
+        path: ${{ github.workspace }}/resources
+...
+```
+
+The `deploy` job then runs, it firstly downloads the *build* artifacts from the previous step. It then uses the [configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials) action to obtain credentials from the OIDC provider created in the previous section. Note that the `role-to-assume` field references the `${{ secrets.AWS_ROLE_FOR_GITHUB }}` repository secret. Secrets are encrypted environment variables that you create in an organization or repository. It is recommended to use repository secrets to encrypt sensitive data, for more details see the docs [here](https://docs.github.com/en/actions/security-guides/encrypted-secrets). The `AWS_ROLE_FOR_GITHUB` value contains the IAM role ARN . 
+
+
+```yaml
+...
+deploy:
+    needs: build
+    name: Deploy build artifacts to S3
+    runs-on: ubuntu-latest
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+        id-token: write
+        contents: read
+
+    steps:
+    - name: "Download build artifacts"
+        uses: actions/download-artifact@v2
+        with:
+        name: build-artifacts
+        path: ${{ github.workspace }}/resources
+
+    # https://github.com/aws-actions/configure-aws-credentials/issues/271
+    - name: Configure AWS credentials from Test account
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+        aws-region: us-east-1
+        role-to-assume: ${{ secrets.AWS_ROLE_FOR_GITHUB }}
+        role-session-name: GitHubActions
+    - run: aws sts get-caller-identity
+    - name: Copy files to the test website with the AWS CLI
+        run: |
+        aws s3 sync ./resources s3://cdk-github-actions-demo
+...
+```
+
+Upon successful retrieval, the credentials are then loaded as environment variables. The job then runs `sts get-caller-identity` to print the caller identity for demo purposes and then copies the *build* files to the S3 bucket. 
+
+*UPDATE 2021/12/11*: The yaml above above previously referenced the `master` branch, specifically `aws-actions/configure-aws-credentials@master`. This is because the release branch had not been updated, see [this](https://github.com/aws-actions/configure-aws-credentials/issues/271) issue. When possible always pin to specific release branches to avoid accidentally pulling in unexpected changes.
+
+# Conclusion
+Github Actions provides a community driven platform for anyone to create actions. This is great from a DevOps perspective but it inherently introduces operational risks. When possible use official actions provided by organisations. This post provides a modern CDK example of how to integrate Github Actions with the official AWS configure-aws-credentials action using OIDC. The approach presented eliminates the need for long term IAM principals, hard-coded secrets, and reduces operational risks. Notably, the general approach can be applied with other cloud providers, however, the implementation will differ.
+
+All of the code samples used in this post can be seen in the [arbitraryrw/cdk-github-actions-demo](https://github.com/arbitraryrw/cdk-github-actions-demo ) repository, including the actual pipelines for full visibility. Happy hacking!
+
+## References:
+1. [Github Custom Actions](https://docs.github.com/en/actions/creating-actions/about-custom-actions)
+1. [Official AWS Actions](https://github.com/aws-actions)
+1. [AWS Actions - aws-configure-credentials](https://github.com/aws-actions/configure-aws-credentials)
+1. [Github - Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
+1. [Github - About security hardening with OpenID Connect](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
+1. [Github - Encrypted Secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets)
+
+</div>
