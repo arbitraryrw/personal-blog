@@ -16,7 +16,7 @@
     "lodash": "^4.17.21",
     "navi": "^0.13.3",
     "navi-scripts": "^0.13.3",
-    "netlify-cli": "^2.71.0",
+    "netlify-cli": "^12.12.0",
     "prismjs": "^1.24.1",
     "react": "^16.14.0",
     "react-dom": "^16.14.0",
